@@ -1,0 +1,152 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root,
+html[data-theme='dark'] {
+  /* PRD 4.3.1 Dark palette → rgb triples for Tailwind opacity support */
+  --bg-primary: 30 30 46; /* #1E1E2E */
+  --bg-secondary: 38 38 55; /* #262637 */
+  --bg-tertiary: 45 45 68; /* #2D2D44 */
+  --bg-panel: 34 34 50; /* ~midpoint panel */
+  --bg-elevated: 49 50 68; /* hover row */
+
+  --fg-primary: 205 214 244; /* #CDD6F4 */
+  --fg-secondary: 166 173 200; /* #A6ADC8 */
+  --fg-muted: 127 132 156;
+
+  --accent: 137 180 250; /* #89B4FA */
+  --accent-hover: 116 165 245;
+
+  --state-success: 166 227 161; /* #A6E3A1 */
+  --state-warning: 249 226 175; /* #F9E2AF */
+  --state-error: 243 139 168; /* #F38BA8 */
+  --state-info: 137 180 250;
+
+  --diff-add-bg: 166 227 161; /* used with /20 alpha */
+  --diff-del-bg: 243 139 168;
+
+  --border: 69 71 90; /* #45475A */
+  --border-strong: 88 91 112;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+body {
+  font-family: theme('fontFamily.sans');
+  font-size: 13px;
+  color: rgb(var(--fg-primary));
+  background: rgb(var(--bg-primary));
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  user-select: none;
+}
+
+code,
+pre,
+.mono {
+  font-family: theme('fontFamily.mono');
+}
+
+/* Allow selection where it's meaningful */
+.selectable,
+input,
+textarea,
+[contenteditable='true'],
+.prose * {
+  user-select: text;
+}
+
+/* Scrollbars — thin, subtle, matches dark palette */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgb(var(--border));
+  border-radius: 999px;
+  border: 2px solid rgb(var(--bg-primary));
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgb(var(--border-strong));
+}
+
+/* Skeleton shimmer */
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    rgb(var(--bg-secondary)) 0%,
+    rgb(var(--bg-tertiary)) 50%,
+    rgb(var(--bg-secondary)) 100%
+  );
+  background-size: 800px 100%;
+  @apply animate-shimmer rounded;
+}
+
+/* Draggable title bar for frameless window */
+.drag-region {
+  -webkit-app-region: drag;
+}
+.no-drag {
+  -webkit-app-region: no-drag;
+}
+
+/* Markdown prose tuning inside AI panel */
+.ai-prose {
+  @apply text-fg-primary leading-relaxed;
+}
+.ai-prose h1,
+.ai-prose h2,
+.ai-prose h3 {
+  @apply text-fg-primary font-semibold mt-4 mb-2;
+}
+.ai-prose h1 {
+  @apply text-base;
+}
+.ai-prose h2 {
+  @apply text-sm;
+}
+.ai-prose h3 {
+  @apply text-xs uppercase tracking-wide text-fg-secondary;
+}
+.ai-prose p {
+  @apply mb-3 text-fg-primary;
+}
+.ai-prose ul {
+  @apply list-disc pl-5 space-y-1 mb-3;
+}
+.ai-prose ol {
+  @apply list-decimal pl-5 space-y-1 mb-3;
+}
+.ai-prose li {
+  @apply text-fg-primary;
+}
+.ai-prose code {
+  @apply bg-bg-tertiary text-fg-primary px-1 py-0.5 rounded text-[11.5px];
+}
+.ai-prose pre {
+  @apply bg-bg-tertiary p-3 rounded-card overflow-x-auto text-[12px];
+}
+.ai-prose strong {
+  @apply text-fg-primary;
+}
+.ai-prose a {
+  @apply text-accent hover:text-accent-hover underline;
+}
+
+/* Focus ring */
+:focus-visible {
+  outline: 2px solid rgb(var(--accent));
+  outline-offset: 2px;
+  border-radius: 4px;
+}

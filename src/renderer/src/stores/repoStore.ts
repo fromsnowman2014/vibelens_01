@@ -27,6 +27,7 @@ interface RepoState {
   openRepoByPath: (repoPath: string) => Promise<void>
   switchBranch: (branch: string) => Promise<void>
   loadCommits: (reset?: boolean) => Promise<void>
+  refreshCommits: () => Promise<void>
   selectCommit: (hash: string) => Promise<void>
   selectFile: (idx: number) => void
   refreshCachedHashes: () => Promise<void>
@@ -169,6 +170,44 @@ export const useRepoStore = create<RepoState>((set, get) => ({
   },
 
   selectFile: (idx) => set({ selectedFileIdx: idx }),
+
+  refreshCommits: async () => {
+    const { path, currentBranch, commits, commitsLoading } = get()
+    if (!path || !currentBranch) return
+    if (commitsLoading) return
+
+    set({ commitsLoading: true })
+    try {
+      // Fetch latest commits (same count as currently loaded)
+      const currentCount = commits.length || PAGE_SIZE
+      const batch = await unwrap(
+        api.git.listCommits(path, currentBranch, currentCount, 0)
+      )
+
+      // Check if there are new commits
+      const existingHashes = new Set(commits.map((c) => c.hash))
+      const newCommits = batch.filter((c) => !existingHashes.has(c.hash))
+
+      if (newCommits.length > 0) {
+        // Prepend new commits to the list
+        const updatedCommits = [...newCommits, ...commits]
+        set({
+          commits: updatedCommits,
+          commitsHasMore: batch.length === currentCount,
+          commitsLoading: false
+        })
+      } else {
+        // Just update hasMore flag
+        set({
+          commitsHasMore: batch.length === currentCount,
+          commitsLoading: false
+        })
+      }
+    } catch (e) {
+      set({ commitsLoading: false })
+      throw e
+    }
+  },
 
   refreshCachedHashes: async () => {
     const { path } = get()

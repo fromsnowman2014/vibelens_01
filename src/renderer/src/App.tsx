@@ -55,8 +55,14 @@ export function App() {
     const off3 = api.on('menu:toggleLanguage', () => {
       useSettingsStore.getState().toggleLanguage()
     })
-    const off4 = api.on('menu:refreshAnalysis', () => {
-      useAnalysisStore.getState().analyzeSelected(true)
+    const off4 = api.on('menu:refreshAnalysis', async () => {
+      // Refresh commits first, then analyze
+      try {
+        await useRepoStore.getState().refreshCommits()
+        await useAnalysisStore.getState().analyzeSelected(true)
+      } catch (e) {
+        console.error('Failed to refresh:', e)
+      }
     })
     return () => {
       off1()

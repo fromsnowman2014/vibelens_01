@@ -111,7 +111,9 @@ export class ClaudeProvider implements LLMProvider {
     } catch {
       // Attempt 2 — reminder
       logger.warn('Claude returned non-JSON, retrying once')
-      const retryMessage = `${userMessage}\n\nYour previous response was not valid JSON. Respond again with ONLY the JSON object that matches the schema. No markdown fences. No prose.`
+      const retryMessage = input.language === 'ko'
+        ? `${userMessage}\n\n이전 응답이 유효한 JSON이 아닙니다. 스키마에 맞는 JSON 객체만 반환하세요. 마크다운 펜스 없이. 모든 값은 한국어로.`
+        : `${userMessage}\n\nYour previous response was not valid JSON. Respond again with ONLY the JSON object that matches the schema. No markdown fences. No prose.`
       try {
         attempt = await callClaude(client, system, retryMessage, input.signal)
         totalIn += attempt.usage.input

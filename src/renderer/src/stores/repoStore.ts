@@ -24,6 +24,7 @@ interface RepoState {
 
   // actions
   openRepo: () => Promise<void>
+  openRepoByPath: (repoPath: string) => Promise<void>
   switchBranch: (branch: string) => Promise<void>
   loadCommits: (reset?: boolean) => Promise<void>
   selectCommit: (hash: string) => Promise<void>
@@ -90,6 +91,32 @@ export const useRepoStore = create<RepoState>((set, get) => ({
     if (check.ask) {
       window.dispatchEvent(
         new CustomEvent('vibelens:ask-gitignore', { detail: { path: result.path } })
+      )
+    }
+  },
+
+  openRepoByPath: async (repoPath: string) => {
+    await unwrap(api.cache.ensureDir(repoPath))
+    const branches = await unwrap(api.repo.getBranches(repoPath))
+    set({
+      path: repoPath,
+      name: basename(repoPath),
+      invalidReason: null,
+      branches,
+      currentBranch: branches.current,
+      commits: [],
+      selectedCommitHash: null,
+      diff: null,
+      selectedFileIdx: 0,
+      cachedHashes: new Set()
+    })
+    await get().loadCommits(true)
+    await get().refreshCachedHashes()
+
+    const check = await unwrap(api.cache.shouldAskGitignore(repoPath))
+    if (check.ask) {
+      window.dispatchEvent(
+        new CustomEvent('vibelens:ask-gitignore', { detail: { path: repoPath } })
       )
     }
   },

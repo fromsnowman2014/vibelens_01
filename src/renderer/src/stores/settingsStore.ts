@@ -12,6 +12,7 @@ interface SettingsState {
   toggleLanguage: () => Promise<Language>
   saveClaudeKey: (key: string) => Promise<void>
   deleteClaudeKey: () => Promise<void>
+  toggleAutoAnalyze: () => Promise<void>
   refreshKeyPresence: () => Promise<void>
 }
 
@@ -51,6 +52,13 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   deleteClaudeKey: async () => {
     await unwrap(api.keychain.delete('claude'))
     set({ hasClaudeKey: false })
+  },
+
+  toggleAutoAnalyze: async () => {
+    const cur = get().settings?.autoAnalyze ?? false
+    const next = !cur
+    const updated = await unwrap(api.settings.set({ autoAnalyze: next }))
+    set({ settings: updated })
   },
 
   refreshKeyPresence: async () => {

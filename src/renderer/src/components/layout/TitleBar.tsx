@@ -1,4 +1,4 @@
-import { Settings as SettingsIcon, FolderOpen, Languages, Sparkles } from 'lucide-react'
+import { Settings as SettingsIcon, FolderOpen, Download, Languages, Sparkles } from 'lucide-react'
 import { useRepoStore } from '@renderer/stores/repoStore'
 import { useSettingsStore } from '@renderer/stores/settingsStore'
 import { Button } from '@renderer/components/primitives/Button'
@@ -6,9 +6,10 @@ import { Badge } from '@renderer/components/primitives/Badge'
 
 interface Props {
   onOpenSettings: () => void
+  onClone: () => void
 }
 
-export function TitleBar({ onOpenSettings }: Props) {
+export function TitleBar({ onOpenSettings, onClone }: Props) {
   const { name, path, branches, currentBranch, switchBranch } = useRepoStore()
   const { settings, toggleLanguage, hasClaudeKey } = useSettingsStore()
   const openRepo = useRepoStore((s) => s.openRepo)
@@ -55,6 +56,10 @@ export function TitleBar({ onOpenSettings }: Props) {
         <Button size="sm" variant="ghost" onClick={openRepo} title="⌘O">
           <FolderOpen size={14} />
           <span>Open</span>
+        </Button>
+        <Button size="sm" variant="ghost" onClick={onClone} title="Clone from URL">
+          <Download size={14} />
+          <span>Clone</span>
         </Button>
         <Button size="sm" variant="ghost" onClick={onOpenSettings} title="⌘,">
           <SettingsIcon size={14} />

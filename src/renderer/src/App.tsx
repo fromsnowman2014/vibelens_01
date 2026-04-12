@@ -8,6 +8,7 @@ import { AIContextPanel } from './components/right/AIContextPanel'
 import { SettingsModal } from './components/modals/SettingsModal'
 import { FirstRunConsentDialog } from './components/modals/FirstRunConsentDialog'
 import { GitignoreConsentDialog } from './components/modals/GitignoreConsentDialog'
+import { CloneRepoDialog } from './components/modals/CloneRepoDialog'
 import { ToastHost, toast, useGlobalErrorToaster } from './components/primitives/Toast'
 import { useSettingsStore } from './stores/settingsStore'
 import { useRepoStore } from './stores/repoStore'
@@ -19,6 +20,7 @@ export function App() {
   useGlobalErrorToaster()
 
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [cloneOpen, setCloneOpen] = useState(false)
   const [gitignoreAsk, setGitignoreAsk] = useState<{ open: boolean; path: string | null }>({
     open: false,
     path: null
@@ -117,7 +119,7 @@ export function App() {
 
   return (
     <div className="flex flex-col h-full text-fg-primary">
-      <TitleBar onOpenSettings={openSettings} />
+      <TitleBar onOpenSettings={openSettings} onClone={() => setCloneOpen(true)} />
       <ThreePanelLayout
         left={<LeftPanel />}
         center={<CenterPanel />}
@@ -171,6 +173,24 @@ export function App() {
             }
           }
           setGitignoreAsk({ open: false, path: null })
+        }}
+      />
+
+      <CloneRepoDialog
+        open={cloneOpen}
+        onClose={() => setCloneOpen(false)}
+        onCloned={async (clonedPath) => {
+          setCloneOpen(false)
+          try {
+            await useRepoStore.getState().openRepoByPath(clonedPath)
+            toast({ kind: 'success', title: 'Repository cloned and opened', description: clonedPath })
+          } catch (e) {
+            toast({
+              kind: 'error',
+              title: 'Failed to open cloned repository',
+              description: e instanceof Error ? e.message : String(e)
+            })
+          }
         }}
       />
 

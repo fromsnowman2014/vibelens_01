@@ -85,16 +85,13 @@ export function DiffViewer({ file }: Props) {
         </div>
       )
     }
-    if (file.isTooLarge) {
-      return (
-        <div className="p-6 text-center text-fg-secondary text-sm">
-          Diff too large ({file.additions + file.deletions} lines) ·{' '}
-          <span className="text-fg-muted">showing only file stats</span>
-        </div>
-      )
-    }
     return (
       <div className="text-[12px]">
+        {file.isTooLarge && (
+          <div className="px-4 py-2 bg-yellow-500/10 text-yellow-400 text-xs border-b border-border">
+            ⚠ Large file ({file.additions + file.deletions} lines) — rendering may be slow
+          </div>
+        )}
         <ReactDiffViewer
           oldValue={file.oldContent}
           newValue={file.newContent}

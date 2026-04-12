@@ -18,6 +18,9 @@ const api = {
   repo: {
     open: () =>
       invoke<{ path: string; valid: boolean; reason?: string } | null>('repo:open'),
+    clone: (url: string, dest: string) =>
+      invoke<{ path: string; valid: boolean }>('repo:clone', { url, dest }),
+    selectDirectory: () => invoke<string | null>('repo:selectDirectory'),
     validate: (p: string) => invoke<{ valid: boolean }>('repo:validate', { path: p }),
     getBranches: (p: string) => invoke<BranchInfo>('repo:getBranches', { path: p }),
     openInFinder: (p: string) => invoke<boolean>('repo:openInFinder', { path: p })

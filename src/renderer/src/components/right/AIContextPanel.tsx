@@ -28,8 +28,10 @@ export function AIContextPanel({ onOpenSettings }: Props) {
   const commits = useRepoStore((s) => s.commits)
   const path = useRepoStore((s) => s.path)
   const language = useSettingsStore((s) => s.settings?.language ?? 'en')
+  const autoAnalyze = useSettingsStore((s) => s.settings?.autoAnalyze ?? false)
   const hasKey = useSettingsStore((s) => s.hasClaudeKey)
   const toggleLanguage = useSettingsStore((s) => s.toggleLanguage)
+  const toggleAutoAnalyze = useSettingsStore((s) => s.toggleAutoAnalyze)
   const { cache, status, errors, analyzeSelected } = useAnalysisStore()
 
   const commit = commits.find((c) => c.hash === selectedHash)
@@ -57,6 +59,15 @@ export function AIContextPanel({ onOpenSettings }: Props) {
 
   const actions = (
     <>
+      <label className="flex items-center gap-1.5 text-xs text-fg-secondary cursor-pointer mr-1" title="Auto-analyze on commit select">
+        <input
+          type="checkbox"
+          checked={autoAnalyze}
+          onChange={() => toggleAutoAnalyze()}
+          className="accent-accent-primary w-3.5 h-3.5 cursor-pointer"
+        />
+        Auto
+      </label>
       <Button
         size="sm"
         variant="ghost"

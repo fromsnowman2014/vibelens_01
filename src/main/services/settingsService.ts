@@ -9,7 +9,7 @@ const defaults: Settings = {
   gitignoreAsked: {},
   recentRepos: [],
   claudeModel: DEFAULT_CLAUDE_MODEL,
-  autoAnalyze: true
+  autoAnalyze: false
 }
 
 // electron-store v8 uses CJS default export

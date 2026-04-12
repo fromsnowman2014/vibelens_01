@@ -17,6 +17,11 @@ function git(repoPath: string): SimpleGit {
   })
 }
 
+export async function cloneRepo(url: string, destPath: string): Promise<void> {
+  const g = simpleGit()
+  await g.clone(url, destPath, ['--progress'])
+}
+
 export async function checkIsRepo(repoPath: string): Promise<boolean> {
   try {
     const stat = await fs.stat(path.join(repoPath, '.git'))
@@ -282,22 +287,21 @@ export async function getDiff(
       continue
     }
 
-    const tooLarge = f.additions + f.deletions > MAX_FILE_LINES
+    const isLarge = f.additions + f.deletions > MAX_FILE_LINES
 
     let oldContent = ''
     let newContent = ''
 
-    if (!tooLarge) {
-      if (f.status !== 'added') {
-        oldContent = await getFileAtCommit(
-          repoPath,
-          parent,
-          f.oldPath || f.path
-        )
-      }
-      if (f.status !== 'deleted') {
-        newContent = await getFileAtCommit(repoPath, commitHash, f.path)
-      }
+    // Always fetch content regardless of size (UI will show warning for large files)
+    if (f.status !== 'added') {
+      oldContent = await getFileAtCommit(
+        repoPath,
+        parent,
+        f.oldPath || f.path
+      )
+    }
+    if (f.status !== 'deleted') {
+      newContent = await getFileAtCommit(repoPath, commitHash, f.path)
     }
 
     diffFiles.push({
@@ -307,7 +311,7 @@ export async function getDiff(
       additions: f.additions,
       deletions: f.deletions,
       isBinary: false,
-      isTooLarge: tooLarge,
+      isTooLarge: isLarge,
       oldContent,
       newContent,
       language

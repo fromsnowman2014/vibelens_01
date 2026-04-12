@@ -3,6 +3,7 @@ import fs from 'fs/promises'
 import path from 'path'
 import {
   checkIsRepo,
+  cloneRepo,
   getBranches,
   getDiff,
   getFileAtCommit,
@@ -72,6 +73,34 @@ export function registerIpc(): void {
       }
       addRecentRepo(p)
       return { path: p, valid: true }
+    })
+  )
+
+  ipcMain.handle(
+    'repo:clone',
+    async (
+      _e,
+      { url, dest }: { url: string; dest: string }
+    ) =>
+      wrap(async () => {
+        await cloneRepo(url, dest)
+        const valid = await checkIsRepo(dest)
+        if (!valid) throw new Error('Clone completed but directory is not a valid git repo.')
+        addRecentRepo(dest)
+        return { path: dest, valid: true }
+      })
+  )
+
+  ipcMain.handle('repo:selectDirectory', async () =>
+    wrap(async () => {
+      const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0]
+      const result = await dialog.showOpenDialog(win!, {
+        title: 'Select Clone Destination',
+        properties: ['openDirectory', 'createDirectory'],
+        buttonLabel: 'Select'
+      })
+      if (result.canceled || result.filePaths.length === 0) return null
+      return result.filePaths[0]
     })
   )
 

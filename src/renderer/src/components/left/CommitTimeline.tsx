@@ -5,12 +5,13 @@ import { useSettingsStore } from '@renderer/stores/settingsStore'
 import { cx } from '@renderer/lib/cx'
 import { Skeleton } from '@renderer/components/primitives/Skeleton'
 import { EmptyState } from '@renderer/components/primitives/EmptyState'
-import { FolderOpen, GitCommit } from 'lucide-react'
+import { FolderOpen, GitCommit, Search } from 'lucide-react'
 import { Button } from '@renderer/components/primitives/Button'
 import type { Commit } from '@shared/types'
 
 interface Props {
   onArrowNav?: (dir: -1 | 1) => void
+  filteredCommits?: Commit[]
 }
 
 function CacheDot({ hash }: { hash: string }) {
@@ -76,11 +77,12 @@ function CommitRow({ commit, selected, onClick }: { commit: Commit; selected: bo
   )
 }
 
-export function CommitTimeline({ onArrowNav }: Props) {
+export function CommitTimeline({ onArrowNav, filteredCommits }: Props) {
   const { commits, commitsLoading, commitsHasMore, selectedCommitHash, selectCommit, loadCommits, path } =
     useRepoStore()
   const openRepo = useRepoStore((s) => s.openRepo)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const displayCommits = filteredCommits ?? commits
 
   const onScroll = useCallback(() => {
     const el = scrollRef.current
@@ -159,20 +161,30 @@ export function CommitTimeline({ onArrowNav }: Props) {
 
   return (
     <div ref={scrollRef} onScroll={onScroll} className="h-full overflow-auto">
-      <div className="divide-y divide-border/60">
-        {commits.map((c) => (
-          <CommitRow
-            key={c.hash}
-            commit={c}
-            selected={c.hash === selectedCommitHash}
-            onClick={() => selectCommit(c.hash).catch(() => {})}
-          />
-        ))}
-      </div>
-      {commitsHasMore && (
-        <div className="p-3 text-center text-[11px] text-fg-muted">
-          {commitsLoading ? 'Loading more…' : 'Scroll for more'}
-        </div>
+      {filteredCommits !== undefined && filteredCommits.length === 0 ? (
+        <EmptyState
+          icon={<Search size={24} />}
+          title="No matching commits"
+          description="Try a different search query."
+        />
+      ) : (
+        <>
+          <div className="divide-y divide-border/60">
+            {displayCommits.map((c) => (
+              <CommitRow
+                key={c.hash}
+                commit={c}
+                selected={c.hash === selectedCommitHash}
+                onClick={() => selectCommit(c.hash).catch(() => {})}
+              />
+            ))}
+          </div>
+          {commitsHasMore && !filteredCommits && (
+            <div className="p-3 text-center text-[11px] text-fg-muted">
+              {commitsLoading ? 'Loading more…' : 'Scroll for more'}
+            </div>
+          )}
+        </>
       )}
     </div>
   )

@@ -19,7 +19,6 @@
 2. **3가지 주요 액션 버튼 (카드 형식)**
    - 📁 **Open project** - 프로젝트 열기
    - 📋 **Clone repo** - Repository Clone
-   - 🔌 **Connect via SSH** - SSH 연결
 
 3. **Recent projects 목록**
    - 최근 열었던 프로젝트 목록 (5개 표시)
@@ -31,7 +30,6 @@
 
 5. **상단 바**
    - Search 기능
-   - Upgrade to Pro 버튼
    - Agents Window, Settings 등 유틸리티 아이콘
 
 ---
@@ -713,23 +711,22 @@ docs/
 ## 🎯 성공 기준
 
 ### Phase 1 완료 조건
-- [ ] Welcome Screen이 Repository 없을 때 표시됨
-- [ ] Open/Clone/Setup 버튼이 정상 동작함
-- [ ] Recent Repositories 최근 5개 표시됨
-- [ ] Recent Repo 클릭 시 해당 레포가 열림
-- [ ] Repository 열리면 Welcome Screen이 숨겨짐
-- [ ] File 메뉴에 Clone/Close Repository 기능이 추가됨
-- [ ] API Key 상태 뱃지(✅ Saved / ⚠️ Required)가 Setup 카드에 표시됨
+- [x] Welcome Screen이 Repository 없을 때 표시됨
+- [x] Open/Clone/Setup 버튼이 정상 동작함
+- [x] Recent Repositories 최근 5개 표시됨
+- [x] Recent Repo 클릭 시 해당 레포가 열림
+- [x] File 메뉴에 Clone/Close Repository 기능이 추가됨
+- [x] API Key 상태 뱃지(✅ Saved / ⚠️ Required)가 Setup 카드에 표시됨
 
 ### Phase 2 완료 조건
-- [ ] RecentRepo에 메타 정보 포함됨 (path, name, lastOpened, branch)
-- [ ] 기존 `string[]` 데이터 마이그레이션 정상 동작
-- [ ] 최근 열은 순서대로 정렬됨
-- [ ] Repository 이름이 올바르게 표시됨
+- [x] RecentRepo에 메타 정보 포함됨 (path, name, lastOpened, branch)
+- [x] 기존 `string[]` 데이터 마이그레이션 정상 동작
+- [x] 최근 열은 순서대로 정렬됨
+- [x] Repository 이름이 올바르게 표시됨
 - [ ] Native 메뉴 Open Recent 서브메뉴 동작
 
 ### Phase 3 완료 조건
-- [ ] 3-A: 커밋 메시지/해시/작성자 필터가 LeftPanel에서 동작함
+- [x] 3-A: 커밋 메시지/해시/작성자 필터가 LeftPanel에서 동작함
 - [ ] 3-B: `git log -S` 기반 딥 검색이 정상 작동함
 - [ ] View All 모달이 동작함
 - [ ] Getting Started 팁이 표시됨

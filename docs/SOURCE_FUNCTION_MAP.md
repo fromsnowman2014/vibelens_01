@@ -2,7 +2,7 @@
 
 > **목적**: 문제 분석, 개선, 기능 추가 시 전체 소스 구조를 매번 검색하지 않고, 이 맵 파일을 통해 해당 파일 및 함수에 직접 접근하여 토큰을 효율적으로 사용하고 vibe coding을 가능하게 합니다.
 
-**Last Updated**: 2026-04-13 (Phase 1 - Welcome Screen 추가)
+**Last Updated**: 2026-04-13 (Phase 2/3-A - 검색 필터, Recent Repos 개선)
 
 ---
 
@@ -430,8 +430,12 @@ vibelens_01/
 
 **RecentReposList** (`components/welcome/RecentReposList.tsx`)
 - 최근 열었던 레포 목록 표시 (최대 5개)
+- **[Phase 2]** `lastOpened` 기준 정렬 (최신 우선)
+- **[Phase 2]** 상대 시간 표시 (`formatRelativeTime()` — "Just now", "2m ago", "Yesterday" 등)
+- **[Phase 2]** 경로 축약 (`shortenPath()` — `/Users/name/...` → `~/...`)
+- **[Phase 2]** 브랜치 뱃지 (chip 스타일)
 - 클릭 시 해당 레포 열기
-- "View all" 링크 (Phase 2에서 구현 예정)
+- "View all" 링크 (`onViewAll` prop)
 
 ---
 
@@ -439,10 +443,14 @@ vibelens_01/
 
 **LeftPanel** (`components/left/LeftPanel.tsx`)
 - 레포 선택, 브랜치 선택, 커밋 타임라인 통합
+- **[Phase 3-A]** 커밋 검색 필터: `searchQuery` 상태 및 `useMemo` 기반 `commits.filter()` (message/subject/hash/author)
+- 필터링 시 매칭 카운트 표시 (`N/total`)
 
 **CommitTimeline** (`components/left/CommitTimeline.tsx`)
-- 커밋 목록 (가상 스크롤 또는 페이징)
+- 커밋 목록 (페이징 + 무한 스크롤)
 - 캐시 여부 뱃지 표시
+- **[Phase 3-A]** `filteredCommits?: Commit[]` prop 수신 → 필터링된 목록 렌더링
+- 검색 결과 없을 때 `EmptyState` 표시
 
 ---
 

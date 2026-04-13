@@ -21,6 +21,49 @@ function extractRepoName(url: string): string {
   }
 }
 
+function validateGitUrl(url: string): { valid: boolean; error?: string } {
+  const trimmed = url.trim()
+
+  if (!trimmed) {
+    return { valid: false, error: 'URL cannot be empty' }
+  }
+
+  // GitHub HTTPS
+  if (/^https:\/\/github\.com\/[\w-]+\/[\w.-]+(?:\.git)?$/.test(trimmed)) {
+    return { valid: true }
+  }
+
+  // GitHub SSH
+  if (/^git@github\.com:[\w-]+\/[\w.-]+(?:\.git)?$/.test(trimmed)) {
+    return { valid: true }
+  }
+
+  // GitLab HTTPS
+  if (/^https:\/\/gitlab\.com\/[\w-]+\/[\w.-]+(?:\.git)?$/.test(trimmed)) {
+    return { valid: true }
+  }
+
+  // GitLab SSH
+  if (/^git@gitlab\.com:[\w-]+\/[\w.-]+(?:\.git)?$/.test(trimmed)) {
+    return { valid: true }
+  }
+
+  // Generic Git HTTPS
+  if (/^https:\/\/[\w.-]+\/[\w-]+\/[\w.-]+(?:\.git)?$/.test(trimmed)) {
+    return { valid: true }
+  }
+
+  // Generic Git SSH
+  if (/^git@[\w.-]+:[\w-]+\/[\w.-]+(?:\.git)?$/.test(trimmed)) {
+    return { valid: true }
+  }
+
+  return {
+    valid: false,
+    error: 'Invalid Git URL. Use HTTPS (https://...) or SSH (git@...) format.'
+  }
+}
+
 export function CloneRepoDialog({ open, onClose, onCloned }: Props) {
   const [url, setUrl] = useState('')
   const [destDir, setDestDir] = useState('')
@@ -54,6 +97,14 @@ export function CloneRepoDialog({ open, onClose, onCloned }: Props) {
 
   const handleClone = useCallback(async () => {
     if (!url.trim() || !fullDest) return
+
+    // Validate URL first
+    const validation = validateGitUrl(url)
+    if (!validation.valid) {
+      setError(validation.error || 'Invalid URL')
+      return
+    }
+
     setCloning(true)
     setError(null)
     try {
@@ -61,13 +112,25 @@ export function CloneRepoDialog({ open, onClose, onCloned }: Props) {
       onCloned(result.path)
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)
-      setError(msg)
+      // Provide more user-friendly error messages
+      if (msg.includes('ENOENT') || msg.includes('not found')) {
+        setError('Repository not found. Check the URL and try again.')
+      } else if (msg.includes('EACCES') || msg.includes('permission')) {
+        setError('Permission denied. Check your access rights or try using SSH.')
+      } else if (msg.includes('already exists')) {
+        setError('Directory already exists. Choose a different location.')
+      } else if (msg.includes('Authentication') || msg.includes('credentials')) {
+        setError('Authentication required. Try using SSH or check your credentials.')
+      } else {
+        setError(msg)
+      }
     } finally {
       setCloning(false)
     }
   }, [url, fullDest, onCloned])
 
-  const canClone = url.trim().length > 0 && fullDest.length > 0 && !cloning
+  const validation = validateGitUrl(url)
+  const canClone = validation.valid && fullDest.length > 0 && !cloning
 
   return (
     <Modal open={open} onClose={cloning ? () => {} : onClose} title="Clone Repository">
@@ -83,10 +146,17 @@ export function CloneRepoDialog({ open, onClose, onCloned }: Props) {
               setError(null)
             }}
             placeholder="https://github.com/user/repo.git"
-            className="w-full px-3 py-2 rounded-md bg-bg-secondary border border-border text-fg-primary text-sm placeholder:text-fg-muted focus:outline-none focus:border-accent-primary"
+            className={`w-full px-3 py-2 rounded-md bg-bg-secondary border text-fg-primary text-sm placeholder:text-fg-muted focus:outline-none focus:border-accent-primary ${
+              url && !validation.valid
+                ? 'border-state-warning'
+                : 'border-border'
+            }`}
             disabled={cloning}
             autoFocus
           />
+          {url && !validation.valid && (
+            <p className="text-xs text-state-warning mt-1">{validation.error}</p>
+          )}
         </div>
 
         {/* Destination Directory */}

@@ -59,6 +59,8 @@ app.whenReady().then(async () => {
   Menu.setApplicationMenu(
     buildAppMenu({
       openRepo: () => mainWindow?.webContents.send('menu:openRepo'),
+      cloneRepo: () => mainWindow?.webContents.send('menu:cloneRepo'),
+      closeRepo: () => mainWindow?.webContents.send('menu:closeRepo'),
       openSettings: () => mainWindow?.webContents.send('menu:openSettings'),
       toggleLanguage: () => mainWindow?.webContents.send('menu:toggleLanguage'),
       refreshAnalysis: () => mainWindow?.webContents.send('menu:refreshAnalysis')

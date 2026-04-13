@@ -3,6 +3,13 @@
 
 export type Language = 'ko' | 'en'
 
+export interface RecentRepo {
+  path: string
+  name: string
+  lastOpened?: number // Phase 2: timestamp
+  branch?: string // Phase 2: last viewed branch
+}
+
 export interface Commit {
   hash: string
   shortHash: string
@@ -89,7 +96,7 @@ export interface Settings {
   language: Language
   consentAccepted: boolean
   gitignoreAsked: Record<string, boolean> // repoPath → asked flag
-  recentRepos: string[]
+  recentRepos: RecentRepo[]
   claudeModel: string
   autoAnalyze: boolean
 }

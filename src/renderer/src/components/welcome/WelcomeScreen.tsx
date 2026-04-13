@@ -1,3 +1,4 @@
+import { FolderOpen, Download, Settings, Lightbulb } from 'lucide-react'
 import { useRepoStore } from '@renderer/stores/repoStore'
 import { useSettingsStore } from '@renderer/stores/settingsStore'
 import { Badge } from '../primitives/Badge'
@@ -15,12 +16,9 @@ export function WelcomeScreen({ onOpenSettings, onOpenClone }: WelcomeScreenProp
   const hasClaudeKey = useSettingsStore((s) => s.hasClaudeKey)
   const recentRepos = useSettingsStore((s) => s.settings?.recentRepos ?? [])
 
-  // Convert string[] to RecentRepo[] format
-  const recentReposList = recentRepos.map((path) => {
-    const parts = path.split('/').filter(Boolean)
-    const name = parts[parts.length - 1] || path
-    return { path, name }
-  })
+  // Platform-specific keyboard shortcut
+  const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0
+  const modKey = isMac ? '⌘' : 'Ctrl'
 
   const handleOpenRepo = () => {
     openRepo()
@@ -77,7 +75,7 @@ export function WelcomeScreen({ onOpenSettings, onOpenClone }: WelcomeScreenProp
         <div className="grid grid-cols-3 gap-4 w-full max-w-2xl">
           {/* Open Repository */}
           <ActionCard
-            icon="📁"
+            icon={<FolderOpen size={28} strokeWidth={1.5} />}
             title="Open Repository"
             description="Browse and select a local Git repository"
             onClick={handleOpenRepo}
@@ -85,7 +83,7 @@ export function WelcomeScreen({ onOpenSettings, onOpenClone }: WelcomeScreenProp
 
           {/* Clone Repository */}
           <ActionCard
-            icon="📋"
+            icon={<Download size={28} strokeWidth={1.5} />}
             title="Clone Repository"
             description="Clone a repository from a remote URL"
             onClick={handleCloneRepo}
@@ -93,7 +91,7 @@ export function WelcomeScreen({ onOpenSettings, onOpenClone }: WelcomeScreenProp
 
           {/* Setup API Key */}
           <ActionCard
-            icon="⚙️"
+            icon={<Settings size={28} strokeWidth={1.5} />}
             title="Setup API Key"
             description="Configure your Claude API key"
             badge={
@@ -113,15 +111,15 @@ export function WelcomeScreen({ onOpenSettings, onOpenClone }: WelcomeScreenProp
 
         {/* Recent Repositories */}
         <RecentReposList
-          repos={recentReposList}
+          repos={recentRepos}
           onSelectRepo={handleSelectRepo}
         />
 
         {/* Tips */}
         <div className="flex items-center gap-2 text-[12px] text-fg-muted mt-4">
-          <span className="opacity-60">💡</span>
+          <Lightbulb size={14} className="opacity-60" />
           <span>
-            Tip: Press <kbd className="px-1.5 py-0.5 bg-bg-tertiary rounded text-[11px] border border-border">⌘O</kbd> to open a repository
+            Tip: Press <kbd className="px-1.5 py-0.5 bg-bg-tertiary rounded text-[11px] border border-border">{modKey}+O</kbd> to open a repository
           </span>
         </div>
       </div>

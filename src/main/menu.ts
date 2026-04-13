@@ -2,6 +2,8 @@ import { Menu, MenuItemConstructorOptions, app } from 'electron'
 
 interface MenuActions {
   openRepo: () => void
+  cloneRepo: () => void
+  closeRepo: () => void
   openSettings: () => void
   toggleLanguage: () => void
   refreshAnalysis: () => void
@@ -41,6 +43,15 @@ export function buildAppMenu(actions: MenuActions): Menu {
           label: 'Open Repository…',
           accelerator: 'CmdOrCtrl+O',
           click: () => actions.openRepo()
+        },
+        {
+          label: 'Clone Repository…',
+          accelerator: 'CmdOrCtrl+Shift+O',
+          click: () => actions.cloneRepo()
+        },
+        {
+          label: 'Close Repository',
+          click: () => actions.closeRepo()
         },
         { type: 'separator' },
         isMac ? { role: 'close' } : { role: 'quit' }

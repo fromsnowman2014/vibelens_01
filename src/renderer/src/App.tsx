@@ -5,6 +5,7 @@ import { StatusBar } from './components/layout/StatusBar'
 import { LeftPanel } from './components/left/LeftPanel'
 import { CenterPanel } from './components/center/CenterPanel'
 import { AIContextPanel } from './components/right/AIContextPanel'
+import { WelcomeScreen } from './components/welcome/WelcomeScreen'
 import { SettingsModal } from './components/modals/SettingsModal'
 import { FirstRunConsentDialog } from './components/modals/FirstRunConsentDialog'
 import { GitignoreConsentDialog } from './components/modals/GitignoreConsentDialog'
@@ -27,6 +28,7 @@ export function App() {
   })
 
   const { settings, loaded, load, acceptConsent, refreshKeyPresence } = useSettingsStore()
+  const repoPath = useRepoStore((s) => s.path)
   const selectedHash = useRepoStore((s) => s.selectedCommitHash)
   const language = useSettingsStore((s) => s.settings?.language ?? 'en')
   const analyzeSelected = useAnalysisStore((s) => s.analyzeSelected)
@@ -64,11 +66,19 @@ export function App() {
         console.error('Failed to refresh:', e)
       }
     })
+    const off5 = api.on('menu:cloneRepo', () => {
+      setCloneOpen(true)
+    })
+    const off6 = api.on('menu:closeRepo', () => {
+      useRepoStore.getState().closeRepo()
+    })
     return () => {
       off1()
       off2()
       off3()
       off4()
+      off5()
+      off6()
     }
   }, [])
 
@@ -126,11 +136,20 @@ export function App() {
   return (
     <div className="flex flex-col h-full text-fg-primary">
       <TitleBar onOpenSettings={openSettings} onClone={() => setCloneOpen(true)} />
-      <ThreePanelLayout
-        left={<LeftPanel />}
-        center={<CenterPanel />}
-        right={<AIContextPanel onOpenSettings={openSettings} />}
-      />
+
+      {!repoPath ? (
+        <WelcomeScreen
+          onOpenSettings={openSettings}
+          onOpenClone={() => setCloneOpen(true)}
+        />
+      ) : (
+        <ThreePanelLayout
+          left={<LeftPanel />}
+          center={<CenterPanel />}
+          right={<AIContextPanel onOpenSettings={openSettings} />}
+        />
+      )}
+
       <StatusBar />
 
       <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />

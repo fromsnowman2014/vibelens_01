@@ -25,6 +25,7 @@ interface RepoState {
   // actions
   openRepo: () => Promise<void>
   openRepoByPath: (repoPath: string) => Promise<void>
+  closeRepo: () => void
   switchBranch: (branch: string) => Promise<void>
   loadCommits: (reset?: boolean) => Promise<void>
   refreshCommits: () => Promise<void>
@@ -120,6 +121,24 @@ export const useRepoStore = create<RepoState>((set, get) => ({
         new CustomEvent('vibelens:ask-gitignore', { detail: { path: repoPath } })
       )
     }
+  },
+
+  closeRepo: () => {
+    set({
+      path: null,
+      name: null,
+      invalidReason: null,
+      branches: null,
+      currentBranch: null,
+      commits: [],
+      commitsLoading: false,
+      commitsHasMore: false,
+      selectedCommitHash: null,
+      diff: null,
+      diffLoading: false,
+      selectedFileIdx: 0,
+      cachedHashes: new Set()
+    })
   },
 
   switchBranch: async (branch) => {

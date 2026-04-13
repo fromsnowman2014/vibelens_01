@@ -1,14 +1,10 @@
 import { cx } from '@renderer/lib/cx'
-
-interface RecentRepo {
-  path: string
-  name: string
-}
+import type { RecentRepo } from '@shared/types'
 
 interface RecentReposListProps {
   repos: RecentRepo[]
   onSelectRepo: (path: string) => void
-  onViewAll?: () => void
+  onViewAll?: () => void // Phase 2: Opens full repo list modal
 }
 
 export function RecentReposList({ repos, onSelectRepo, onViewAll }: RecentReposListProps) {

@@ -2,7 +2,7 @@
 
 > **목적**: 문제 분석, 개선, 기능 추가 시 전체 소스 구조를 매번 검색하지 않고, 이 맵 파일을 통해 해당 파일 및 함수에 직접 접근하여 토큰을 효율적으로 사용하고 vibe coding을 가능하게 합니다.
 
-**Last Updated**: 2026-04-11
+**Last Updated**: 2026-04-13 (Phase 1 - Welcome Screen 추가)
 
 ---
 
@@ -33,7 +33,8 @@ vibelens_01/
 - `DiffFile` - 파일 변경 정보 (path, status, additions/deletions)
 - `DiffResult` - 커밋의 전체 diff 결과
 - `AnalysisResult` - AI 분석 결과 (summary, whatChanged, risks 등)
-- `Settings` - 앱 설정 (language, theme, API key 유무 등)
+- `RecentRepo` - 최근 저장소 정보 (path, name, lastOpened?, branch?) **[Phase 1 추가]**
+- `Settings` - 앱 설정 (language, theme, API key 유무, recentRepos 등)
 - `IpcResult<T>` - IPC 통신 결과 래퍼 타입
 
 #### 상수
@@ -115,6 +116,8 @@ vibelens_01/
 
 **메뉴 액션**:
 - File → Open Repository (⌘O)
+- File → Clone Repository (⌘⇧O) **[Phase 1 추가]**
+- File → Close Repository **[Phase 1 추가]**
 - Analysis → Refresh Analysis (⌘R)
 - Analysis → Toggle Language (⌘L)
 - Settings (⌘,)
@@ -168,9 +171,9 @@ vibelens_01/
 ##### Settings Service (`src/main/services/settingsService.ts`)
 
 **핵심 함수**:
-- `getSettings()` - 현재 설정 반환 (`Settings`)
+- `getSettings()` - 현재 설정 반환 (`Settings`) + 마이그레이션 로직 **[Phase 1 업데이트]**
 - `setSettings(patch)` - 설정 부분 업데이트
-- `addRecentRepo(path)` - 최근 레포 목록에 추가 (최대 10개)
+- `addRecentRepo(path)` - 최근 레포 목록에 추가 (최대 10개, RecentRepo 타입으로 저장) **[Phase 1 업데이트]**
 - `markGitignoreAsked(repoPath)` - .gitignore 물어봤다고 기록
 
 **기본값**:
@@ -180,11 +183,14 @@ vibelens_01/
   language: 'en',
   consentAccepted: false,
   gitignoreAsked: {},
-  recentRepos: [],
+  recentRepos: [],  // RecentRepo[] 타입 (Phase 1에서 string[]에서 변경)
   claudeModel: DEFAULT_CLAUDE_MODEL,
   autoAnalyze: false
 }
 ```
+
+**마이그레이션**:
+- 기존 `string[]` 형식의 recentRepos를 자동으로 `RecentRepo[]`로 변환
 
 ---
 
@@ -296,9 +302,10 @@ vibelens_01/
 ##### `App.tsx`
 
 **주요 기능**:
-- 전역 레이아웃 구성 (TitleBar, ThreePanelLayout, StatusBar)
+- 전역 레이아웃 구성 (TitleBar, WelcomeScreen/ThreePanelLayout, StatusBar) **[Phase 1 업데이트]**
+- 조건부 렌더링: `repoPath`가 없으면 WelcomeScreen, 있으면 ThreePanelLayout **[Phase 1 추가]**
 - 모달 관리 (Settings, FirstRunConsent, GitignoreConsent, CloneRepo)
-- 메뉴 이벤트 리스너 (`menu:openRepo`, `menu:openSettings`, etc.)
+- 메뉴 이벤트 리스너 (`menu:openRepo`, `menu:cloneRepo`, `menu:closeRepo`, etc.) **[Phase 1 업데이트]**
 - 커밋 선택 시 자동 캐시 로드 + autoAnalyze 실행
 
 **주요 훅**:
@@ -357,6 +364,7 @@ vibelens_01/
 **액션**:
 - `openRepo()` - 레포 선택 다이얼로그 열기
 - `openRepoByPath(repoPath)` - 경로로 레포 열기
+- `closeRepo()` - 레포 닫기 (상태 초기화) **[Phase 1 추가]**
 - `switchBranch(branch)` - 브랜치 변경
 - `loadCommits(reset?)` - 커밋 페이징 로드 (PAGE_SIZE=80)
 - `selectCommit(hash)` - 커밋 선택 + diff 로드
@@ -404,6 +412,26 @@ vibelens_01/
 
 **StatusBar** (`components/layout/StatusBar.tsx`)
 - 하단 상태 표시 (브랜치, 커밋 개수, 캐시 상태 등)
+
+---
+
+##### Welcome Screen **[Phase 1 추가]**
+
+**WelcomeScreen** (`components/welcome/WelcomeScreen.tsx`)
+- 레포가 없을 때 표시되는 환영 화면
+- 3가지 주요 액션 카드: Open Repository, Clone Repository, Setup API Key
+- Recent Repositories 목록 표시
+- 플랫폼별 키보드 단축키 힌트
+
+**ActionCard** (`components/welcome/ActionCard.tsx`)
+- 재사용 가능한 액션 카드 컴포넌트
+- 아이콘, 제목, 설명, 뱃지 지원
+- 호버 효과 및 스케일 애니메이션
+
+**RecentReposList** (`components/welcome/RecentReposList.tsx`)
+- 최근 열었던 레포 목록 표시 (최대 5개)
+- 클릭 시 해당 레포 열기
+- "View all" 링크 (Phase 2에서 구현 예정)
 
 ---
 
@@ -646,6 +674,30 @@ vibelens_01/
 
 ---
 
-**마지막 업데이트**: 2026-04-11
+**마지막 업데이트**: 2026-04-13 (Phase 1 - Welcome Screen 추가)
 
 이 문서는 VibeLens 프로젝트의 모든 주요 함수와 파일 위치를 정리하여, 개발자가 빠르게 코드베이스를 탐색하고 수정할 수 있도록 돕습니다.
+
+---
+
+## 📝 Phase 1 변경 사항 (2026-04-13)
+
+### 새로 추가된 컴포넌트
+- `WelcomeScreen.tsx` - 레포가 없을 때 표시되는 환영 화면
+- `ActionCard.tsx` - 재사용 가능한 액션 카드
+- `RecentReposList.tsx` - 최근 레포 목록 표시
+
+### 타입 변경
+- `RecentRepo` 타입 추가 (path, name, lastOpened?, branch?)
+- `Settings.recentRepos` 타입 변경: `string[]` → `RecentRepo[]`
+
+### 새로운 기능
+- File 메뉴에 Clone Repository, Close Repository 추가
+- `repoStore.closeRepo()` 액션 추가
+- `settingsService.addRecentRepo()` 업데이트 (RecentRepo 타입 지원)
+- 자동 마이그레이션 로직 (기존 string[] → RecentRepo[])
+
+### UI 개선
+- 플랫폼별 키보드 단축키 표시 (⌘ / Ctrl)
+- Lucide React 아이콘 사용
+- Catppuccin Mocha 디자인 시스템 준수

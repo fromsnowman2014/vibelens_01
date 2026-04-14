@@ -64,6 +64,25 @@ export interface TreeNode {
   children?: TreeNode[]
 }
 
+// 🆕 Educational enhancement types
+export interface EstimatedPrompt {
+  primary: string
+  alternatives: string[]
+  reasoning: string
+}
+
+export interface LearningGuide {
+  keyTechniques: string[]
+  beginnerTips: string[]
+  pitfallsAvoided: string[]
+}
+
+export interface Mentoring {
+  commitQuality: string
+  promptSplittingStrategy: string[]
+  codeSmells: string[]
+}
+
 export interface AnalysisResult {
   commitHash: string
   language: Language
@@ -79,6 +98,11 @@ export interface AnalysisResult {
   generatedAt: string // ISO
   schemaVersion: number
   unparsed: boolean
+
+  // 🆕 Phase 2: Educational enhancements (Optional for backward compatibility)
+  estimatedPrompt?: EstimatedPrompt
+  learningGuide?: LearningGuide
+  mentoring?: Mentoring
 }
 
 export interface AnalysisMeta {
@@ -127,7 +151,7 @@ export interface AnalyzeArgs {
 }
 
 export const DEFAULT_CLAUDE_MODEL = 'claude-sonnet-4-5'
-export const SCHEMA_VERSION = 1
+export const SCHEMA_VERSION = 2 // 🔄 Bumped for educational enhancements
 
 // Chat types
 export interface ChatMessage {

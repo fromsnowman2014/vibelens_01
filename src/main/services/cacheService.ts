@@ -182,26 +182,117 @@ export function renderAnalysisMarkdown(parsed: {
   whyItMatters: string
   risks: string[]
   followUps: string[]
+  // 🆕 Educational fields (optional)
+  estimatedPrompt?: import('@shared/types').EstimatedPrompt
+  learningGuide?: import('@shared/types').LearningGuide
+  mentoring?: import('@shared/types').Mentoring
 }): string {
   const bullets = (xs: string[]) =>
     xs.length === 0 ? '_None_' : xs.map((x) => `- ${x}`).join('\n')
-  return [
+
+  const lines = [
     `# Summary`,
     parsed.summary || '_(none)_',
-    ``,
-    `## What changed`,
-    bullets(parsed.whatChanged),
-    ``,
-    `## Why it matters`,
-    parsed.whyItMatters || '_(none)_',
-    ``,
-    `## Risks`,
-    bullets(parsed.risks),
-    ``,
-    `## Follow ups`,
-    bullets(parsed.followUps),
     ``
-  ].join('\n')
+  ]
+
+  // 🆕 Estimated Prompt (highest priority - shown first)
+  if (parsed.estimatedPrompt) {
+    lines.push(`## 🎯 Estimated Prompt`)
+    lines.push(``)
+    lines.push(`> **"${parsed.estimatedPrompt.primary}"**`)
+    lines.push(``)
+
+    if (parsed.estimatedPrompt.alternatives && parsed.estimatedPrompt.alternatives.length > 0) {
+      lines.push(`**Alternative prompts:**`)
+      parsed.estimatedPrompt.alternatives.forEach((alt) => {
+        lines.push(`- ${alt}`)
+      })
+      lines.push(``)
+    }
+
+    lines.push(`**Why this prompt?**`)
+    lines.push(parsed.estimatedPrompt.reasoning)
+    lines.push(``)
+  }
+
+  // What Changed
+  lines.push(`## What changed`)
+  lines.push(bullets(parsed.whatChanged))
+  lines.push(``)
+
+  // Why It Matters
+  lines.push(`## Why it matters`)
+  lines.push(parsed.whyItMatters || '_(none)_')
+  lines.push(``)
+
+  // 🆕 Learning Guide
+  if (parsed.learningGuide) {
+    lines.push(`## 📚 Learning Guide`)
+    lines.push(``)
+
+    if (parsed.learningGuide.keyTechniques && parsed.learningGuide.keyTechniques.length > 0) {
+      lines.push(`### Key Techniques`)
+      parsed.learningGuide.keyTechniques.forEach((tech) => {
+        lines.push(`- ${tech}`)
+      })
+      lines.push(``)
+    }
+
+    if (parsed.learningGuide.beginnerTips && parsed.learningGuide.beginnerTips.length > 0) {
+      lines.push(`### Tips for Beginners`)
+      parsed.learningGuide.beginnerTips.forEach((tip) => {
+        lines.push(`- 💡 ${tip}`)
+      })
+      lines.push(``)
+    }
+
+    if (parsed.learningGuide.pitfallsAvoided && parsed.learningGuide.pitfallsAvoided.length > 0) {
+      lines.push(`### Pitfalls Avoided`)
+      parsed.learningGuide.pitfallsAvoided.forEach((pitfall) => {
+        lines.push(`- ✅ ${pitfall}`)
+      })
+      lines.push(``)
+    }
+  }
+
+  // 🆕 Vibe Coder Mentoring
+  if (parsed.mentoring) {
+    lines.push(`## 🛠️ Vibe Coder Mentoring`)
+    lines.push(``)
+    lines.push(`### Commit Quality Assessment`)
+    lines.push(`> ${parsed.mentoring.commitQuality}`)
+    lines.push(``)
+
+    if (parsed.mentoring.promptSplittingStrategy && parsed.mentoring.promptSplittingStrategy.length > 0) {
+      lines.push(`### Better Prompting Strategy`)
+      lines.push(`This commit should have been split into:`)
+      parsed.mentoring.promptSplittingStrategy.forEach((step, i) => {
+        lines.push(`${i + 1}. ${step}`)
+      })
+      lines.push(``)
+    }
+
+    if (parsed.mentoring.codeSmells && parsed.mentoring.codeSmells.length > 0) {
+      lines.push(`### Code Smells Detected`)
+      parsed.mentoring.codeSmells.forEach((smell) => {
+        lines.push(`- ⚠️ ${smell}`)
+      })
+      lines.push(``)
+    }
+  }
+
+  // Risks
+  lines.push(`## Risks`)
+  lines.push(bullets(parsed.risks))
+  lines.push(``)
+
+  // Follow Ups
+  lines.push(`## Follow ups`)
+  lines.push(bullets(parsed.followUps))
+  lines.push(``)
+
+  return lines.join('\n')
 }
 
 function extractSection(md: string, heading: string): string {

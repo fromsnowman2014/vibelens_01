@@ -8,12 +8,36 @@ import { logger } from '../../utils/logger'
 import { renderAnalysisMarkdown } from '../cacheService'
 import type { AnalyzeCommitInput, ChatResult, LLMProvider } from './LLMProvider'
 
+// 🆕 Educational enhancement schemas
+const estimatedPromptSchema = z.object({
+  primary: z.string().min(10),
+  alternatives: z.array(z.string()).default([]),
+  reasoning: z.string().min(20)
+})
+
+const learningGuideSchema = z.object({
+  keyTechniques: z.array(z.string()).default([]),
+  beginnerTips: z.array(z.string()).default([]),
+  pitfallsAvoided: z.array(z.string()).default([])
+})
+
+const mentoringSchema = z.object({
+  commitQuality: z.string().min(20),
+  promptSplittingStrategy: z.array(z.string()).default([]),
+  codeSmells: z.array(z.string()).default([])
+})
+
 const schema = z.object({
   summary: z.string(),
   whatChanged: z.array(z.string()),
   whyItMatters: z.string(),
   risks: z.array(z.string()).default([]),
-  followUps: z.array(z.string()).default([])
+  followUps: z.array(z.string()).default([]),
+
+  // 🆕 Optional for backward compatibility
+  estimatedPrompt: estimatedPromptSchema.optional(),
+  learningGuide: learningGuideSchema.optional(),
+  mentoring: mentoringSchema.optional()
 })
 
 const MODEL_ID = 'claude-sonnet-4-5'
@@ -50,7 +74,7 @@ async function callClaude(
   const response = await client.messages.create(
     {
       model: MODEL_ID,
-      max_tokens: 2048,
+      max_tokens: 3072, // 🔄 Increased from 2048 for educational enhancements
       system,
       messages: [{ role: 'user', content: userMessage }]
     },
@@ -129,6 +153,9 @@ export class ClaudeProvider implements LLMProvider {
     let whyItMatters = ''
     let risks: string[] = []
     let followUps: string[] = []
+    let estimatedPrompt: import('@shared/types').EstimatedPrompt | undefined
+    let learningGuide: import('@shared/types').LearningGuide | undefined
+    let mentoring: import('@shared/types').Mentoring | undefined
 
     if (!unparsed) {
       const zresult = schema.safeParse(parsedRaw)
@@ -138,6 +165,10 @@ export class ClaudeProvider implements LLMProvider {
         whyItMatters = zresult.data.whyItMatters
         risks = zresult.data.risks
         followUps = zresult.data.followUps
+        // 🆕 Extract educational fields
+        estimatedPrompt = zresult.data.estimatedPrompt
+        learningGuide = zresult.data.learningGuide
+        mentoring = zresult.data.mentoring
       } else {
         unparsed = true
       }
@@ -166,7 +197,11 @@ export class ClaudeProvider implements LLMProvider {
         whatChanged,
         whyItMatters,
         risks,
-        followUps
+        followUps,
+        // 🆕 Pass educational fields
+        estimatedPrompt,
+        learningGuide,
+        mentoring
       })
     }
 
@@ -184,7 +219,11 @@ export class ClaudeProvider implements LLMProvider {
       tokensOut: totalOut,
       generatedAt: new Date().toISOString(),
       schemaVersion: SCHEMA_VERSION,
-      unparsed
+      unparsed,
+      // 🆕 Include educational fields
+      estimatedPrompt,
+      learningGuide,
+      mentoring
     }
     return result
   }

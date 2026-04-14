@@ -5,6 +5,7 @@ import type {
   Commit,
   DiffResult,
   Language,
+  ProviderId,
   Settings
 } from '@shared/types'
 
@@ -69,26 +70,37 @@ const api = {
     set: (patch: Partial<Settings>) => invoke<Settings>('settings:set', patch)
   },
   keychain: {
-    save: (provider: 'claude', key: string) =>
+    save: (provider: ProviderId, key: string) =>
       invoke<{ hasKey: boolean }>('keychain:save', { provider, key }),
-    has: (provider: 'claude') =>
+    has: (provider: ProviderId) =>
       invoke<{ hasKey: boolean }>('keychain:has', { provider }),
-    delete: (provider: 'claude') =>
+    delete: (provider: ProviderId) =>
       invoke<{ hasKey: boolean }>('keychain:delete', { provider }),
-    test: (provider: 'claude') =>
+    test: (provider: ProviderId) =>
       invoke<{ ok: boolean; error?: string }>('keychain:test', { provider })
   },
   app: {
     openExternal: (url: string) => invoke<boolean>('app:openExternal', { url }),
     readme: () => invoke<string>('app:readme')
   },
+  chat: {
+    send: (messages: { role: 'user' | 'assistant'; content: string }[], context?: string) =>
+      invoke<{ text: string; tokensIn: number; tokensOut: number }>(
+        'chat:send',
+        { messages, context }
+      )
+  },
   on: (channel: string, cb: (...args: unknown[]) => void) => {
     const listener = (_e: IpcRendererEvent, ...args: unknown[]) => cb(...args)
     ipcRenderer.on(channel, listener)
     return () => ipcRenderer.removeListener(channel, listener)
+  },
+  send: (channel: string, ...args: unknown[]) => {
+    ipcRenderer.send(channel, ...args)
   }
 }
 
 contextBridge.exposeInMainWorld('vibelens', api)
 
 export type VibeLensAPI = typeof api
+

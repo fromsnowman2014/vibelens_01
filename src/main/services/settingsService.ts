@@ -10,7 +10,9 @@ const defaults: Settings = {
   gitignoreAsked: {},
   recentRepos: [],
   claudeModel: DEFAULT_CLAUDE_MODEL,
-  autoAnalyze: false
+  autoAnalyze: false,
+  activeProvider: 'claude',
+  activeModel: DEFAULT_CLAUDE_MODEL
 }
 
 // electron-store v8 uses CJS default export
@@ -27,7 +29,8 @@ export function getSettings(): Settings {
   if (settings.recentRepos.length > 0 && typeof settings.recentRepos[0] === 'string') {
     settings.recentRepos = (settings.recentRepos as unknown as string[]).map((path) => ({
       path,
-      name: basename(path)
+      name: basename(path),
+      lastOpened: 0 // Default to epoch for old entries
     }))
     // Save migrated data
     store.store = settings
@@ -42,18 +45,23 @@ export function setSettings(patch: Partial<Settings>): Settings {
   return next
 }
 
-export function addRecentRepo(path: string): void {
+export function addRecentRepo(path: string, branch?: string): void {
   const current = getSettings()
   const newRepo: RecentRepo = {
     path,
     name: basename(path),
-    lastOpened: Date.now()
+    lastOpened: Date.now(),
+    ...(branch && { branch })
   }
   const recent = [
     newRepo,
     ...current.recentRepos.filter((r) => r.path !== path)
   ].slice(0, 10)
   setSettings({ recentRepos: recent })
+}
+
+export function clearRecentRepos(): void {
+  setSettings({ recentRepos: [] })
 }
 
 export function markGitignoreAsked(repoPath: string): void {

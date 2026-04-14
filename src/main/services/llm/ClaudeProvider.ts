@@ -6,7 +6,7 @@ import { getKey } from '../keychainService'
 import { getSystemPrompt, buildUserMessage } from './prompts'
 import { logger } from '../../utils/logger'
 import { renderAnalysisMarkdown } from '../cacheService'
-import type { AnalyzeCommitInput, LLMProvider } from './LLMProvider'
+import type { AnalyzeCommitInput, ChatResult, LLMProvider } from './LLMProvider'
 
 const schema = z.object({
   summary: z.string(),
@@ -188,6 +188,42 @@ export class ClaudeProvider implements LLMProvider {
     }
     return result
   }
+
+  async chatWithContext(
+    messages: { role: 'user' | 'assistant'; content: string }[],
+    context?: string
+  ): Promise<ChatResult> {
+    const client = await makeClient()
+
+    const systemPrompt = context
+      ? `You are VibeLens, an AI assistant that helps developers understand git commits and code changes. You have access to the following analysis context from a commit:\n\n${context}\n\nAnswer the user's questions about this commit concisely and helpfully. Use markdown formatting when appropriate.`
+      : `You are VibeLens, an AI assistant that helps developers understand git commits and code changes. Answer concisely and helpfully. Use markdown formatting when appropriate.`
+
+    // Build Anthropic messages array
+    const anthropicMessages = messages.map((m) => ({
+      role: m.role as 'user' | 'assistant',
+      content: m.content
+    }))
+
+    const response = await client.messages.create({
+      model: MODEL_ID,
+      max_tokens: 2048,
+      system: systemPrompt,
+      messages: anthropicMessages
+    })
+
+    const text = response.content
+      .map((block) => (block.type === 'text' ? block.text : ''))
+      .join('')
+      .trim()
+
+    return {
+      text,
+      tokensIn: response.usage?.input_tokens ?? 0,
+      tokensOut: response.usage?.output_tokens ?? 0
+    }
+  }
 }
 
 export const claudeProvider = new ClaudeProvider()
+

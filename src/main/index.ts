@@ -1,7 +1,8 @@
-import { app, BrowserWindow, Menu, shell, nativeTheme } from 'electron'
+import { app, BrowserWindow, Menu, shell, nativeTheme, ipcMain } from 'electron'
 import { join } from 'path'
 import { registerIpc } from './ipc/registerIpc'
 import { buildAppMenu } from './menu'
+import { clearRecentRepos, getSettings } from './services/settingsService'
 import { logger } from './utils/logger'
 
 let mainWindow: BrowserWindow | null = null
@@ -49,6 +50,31 @@ function createWindow(): BrowserWindow {
   return win
 }
 
+/** Rebuild the native menu with the latest recentRepos from settings */
+export function rebuildMenu(): void {
+  if (!mainWindow) return
+  const settings = getSettings()
+  Menu.setApplicationMenu(
+    buildAppMenu(
+      {
+        openRepo: () => mainWindow?.webContents.send('menu:openRepo'),
+        cloneRepo: () => mainWindow?.webContents.send('menu:cloneRepo'),
+        closeRepo: () => mainWindow?.webContents.send('menu:closeRepo'),
+        openSettings: () => mainWindow?.webContents.send('menu:openSettings'),
+        toggleLanguage: () => mainWindow?.webContents.send('menu:toggleLanguage'),
+        refreshAnalysis: () => mainWindow?.webContents.send('menu:refreshAnalysis'),
+        openRecentRepo: (path: string) =>
+          mainWindow?.webContents.send('menu:openRecentRepo', path),
+        clearRecentRepos: () => {
+          clearRecentRepos()
+          rebuildMenu()
+        }
+      },
+      settings.recentRepos
+    )
+  )
+}
+
 app.whenReady().then(async () => {
   nativeTheme.themeSource = 'dark'
 
@@ -56,16 +82,8 @@ app.whenReady().then(async () => {
 
   mainWindow = createWindow()
 
-  Menu.setApplicationMenu(
-    buildAppMenu({
-      openRepo: () => mainWindow?.webContents.send('menu:openRepo'),
-      cloneRepo: () => mainWindow?.webContents.send('menu:cloneRepo'),
-      closeRepo: () => mainWindow?.webContents.send('menu:closeRepo'),
-      openSettings: () => mainWindow?.webContents.send('menu:openSettings'),
-      toggleLanguage: () => mainWindow?.webContents.send('menu:toggleLanguage'),
-      refreshAnalysis: () => mainWindow?.webContents.send('menu:refreshAnalysis')
-    })
-  )
+  // Initial menu build
+  rebuildMenu()
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -86,3 +104,4 @@ process.on('uncaughtException', (err) => {
 process.on('unhandledRejection', (err) => {
   logger.error('unhandledRejection', err)
 })
+

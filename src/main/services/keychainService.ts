@@ -1,6 +1,7 @@
 import { safeStorage } from 'electron'
 import Store from 'electron-store'
 import { logger } from '../utils/logger'
+import type { ProviderId } from '@shared/types'
 
 const SERVICE = 'VibeLens'
 
@@ -26,8 +27,6 @@ function getKeytar(): typeof import('keytar') | null {
     return null
   }
 }
-
-export type ProviderId = 'claude'
 
 export async function saveKey(provider: ProviderId, key: string): Promise<void> {
   const kt = getKeytar()

@@ -2,6 +2,7 @@
 // Keep this file dependency-free (no Node/Electron imports).
 
 export type Language = 'ko' | 'en'
+export type ProviderId = 'claude' | 'gemini' | 'openai'
 
 export interface RecentRepo {
   path: string
@@ -99,6 +100,8 @@ export interface Settings {
   recentRepos: RecentRepo[]
   claudeModel: string
   autoAnalyze: boolean
+  activeProvider: ProviderId
+  activeModel: string
 }
 
 export interface OpenRepoResult {
@@ -125,3 +128,31 @@ export interface AnalyzeArgs {
 
 export const DEFAULT_CLAUDE_MODEL = 'claude-sonnet-4-5'
 export const SCHEMA_VERSION = 1
+
+// Chat types
+export interface ChatMessage {
+  id: string
+  role: 'user' | 'assistant'
+  content: string
+  timestamp: number
+}
+
+// Multi-LLM model definitions
+export interface ModelDef {
+  id: string
+  name: string
+  default?: boolean
+}
+
+export const LLM_MODELS: Record<ProviderId, ModelDef[]> = {
+  claude: [
+    { id: 'claude-sonnet-4-5', name: 'Claude Sonnet 4.5', default: true },
+    { id: 'claude-haiku-3-5', name: 'Claude Haiku 3.5' }
+  ],
+  gemini: [
+    { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', default: true }
+  ],
+  openai: [
+    { id: 'gpt-4o', name: 'GPT-4o', default: true }
+  ]
+}

@@ -1,4 +1,5 @@
 import { Menu, MenuItemConstructorOptions, app } from 'electron'
+import type { RecentRepo } from '@shared/types'
 
 interface MenuActions {
   openRepo: () => void
@@ -7,10 +8,32 @@ interface MenuActions {
   openSettings: () => void
   toggleLanguage: () => void
   refreshAnalysis: () => void
+  openRecentRepo: (path: string) => void
+  clearRecentRepos: () => void
 }
 
-export function buildAppMenu(actions: MenuActions): Menu {
+export function buildAppMenu(actions: MenuActions, recentRepos: RecentRepo[] = []): Menu {
   const isMac = process.platform === 'darwin'
+
+  // Build Open Recent submenu dynamically
+  const recentItems: MenuItemConstructorOptions[] = recentRepos.slice(0, 10).map((repo) => ({
+    label: repo.name,
+    sublabel: repo.path,
+    click: () => actions.openRecentRepo(repo.path)
+  }))
+
+  const openRecentSubmenu: MenuItemConstructorOptions[] =
+    recentItems.length > 0
+      ? [
+          ...recentItems,
+          { type: 'separator' as const },
+          {
+            label: 'Clear Recent',
+            click: () => actions.clearRecentRepos()
+          }
+        ]
+      : [{ label: 'No Recent Repositories', enabled: false }]
+
   const template: MenuItemConstructorOptions[] = [
     ...(isMac
       ? [
@@ -49,6 +72,11 @@ export function buildAppMenu(actions: MenuActions): Menu {
           accelerator: 'CmdOrCtrl+Shift+O',
           click: () => actions.cloneRepo()
         },
+        {
+          label: 'Open Recent',
+          submenu: openRecentSubmenu
+        },
+        { type: 'separator' },
         {
           label: 'Close Repository',
           click: () => actions.closeRepo()
@@ -106,3 +134,4 @@ export function buildAppMenu(actions: MenuActions): Menu {
 
   return Menu.buildFromTemplate(template)
 }
+

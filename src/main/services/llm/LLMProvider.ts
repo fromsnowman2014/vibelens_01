@@ -1,4 +1,4 @@
-import type { AnalysisResult, Commit, Language } from '@shared/types'
+import type { AnalysisResult, Commit, Language, ProviderId } from '@shared/types'
 
 export interface AnalyzeCommitInput {
   commit: Commit
@@ -7,8 +7,19 @@ export interface AnalyzeCommitInput {
   signal?: AbortSignal
 }
 
+export interface ChatResult {
+  text: string
+  tokensIn: number
+  tokensOut: number
+}
+
 export interface LLMProvider {
-  id: 'claude'
+  id: ProviderId
   analyzeCommit(input: AnalyzeCommitInput): Promise<AnalysisResult>
   ping(): Promise<{ ok: boolean; error?: string }>
+  chatWithContext(
+    messages: { role: 'user' | 'assistant'; content: string }[],
+    context?: string
+  ): Promise<ChatResult>
 }
+

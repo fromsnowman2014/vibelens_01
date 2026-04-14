@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Panel } from '@renderer/components/primitives/Panel'
 import { useRepoStore } from '@renderer/stores/repoStore'
 import { useAnalysisStore } from '@renderer/stores/analysisStore'
@@ -6,6 +7,7 @@ import { Button } from '@renderer/components/primitives/Button'
 import { Badge } from '@renderer/components/primitives/Badge'
 import { Skeleton } from '@renderer/components/primitives/Skeleton'
 import { EmptyState } from '@renderer/components/primitives/EmptyState'
+import { AIChatbox } from './AIChatbox'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import {
@@ -15,15 +17,21 @@ import {
   Languages,
   KeyRound,
   AlertCircle,
-  Sparkles
+  Sparkles,
+  MessageSquare
 } from 'lucide-react'
 import { toast } from '@renderer/components/primitives/Toast'
+import { LLM_MODELS } from '@shared/types'
+import type { ProviderId } from '@shared/types'
 
 interface Props {
   onOpenSettings: () => void
 }
 
+type PanelTab = 'analysis' | 'chat'
+
 export function AIContextPanel({ onOpenSettings }: Props) {
+  const [tab, setTab] = useState<PanelTab>('analysis')
   const selectedHash = useRepoStore((s) => s.selectedCommitHash)
   const commits = useRepoStore((s) => s.commits)
   const path = useRepoStore((s) => s.path)
@@ -32,6 +40,8 @@ export function AIContextPanel({ onOpenSettings }: Props) {
   const hasKey = useSettingsStore((s) => s.hasClaudeKey)
   const toggleLanguage = useSettingsStore((s) => s.toggleLanguage)
   const toggleAutoAnalyze = useSettingsStore((s) => s.toggleAutoAnalyze)
+  const activeProvider = useSettingsStore((s) => s.settings?.activeProvider ?? 'claude')
+  const activeModel = useSettingsStore((s) => s.settings?.activeModel ?? 'claude-sonnet-4-5')
   const { cache, status, errors, analyzeSelected } = useAnalysisStore()
 
   const commit = commits.find((c) => c.hash === selectedHash)
@@ -40,16 +50,58 @@ export function AIContextPanel({ onOpenSettings }: Props) {
   const result = key ? cache[key] : undefined
   const err = key ? errors[key] : undefined
 
+  // Build flat model list for dropdown
+  const allModels = Object.entries(LLM_MODELS).flatMap(([provider, models]) =>
+    models.map((m) => ({ ...m, provider: provider as ProviderId }))
+  )
+
+  const handleModelChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const selectedId = e.target.value
+    const model = allModels.find((m) => m.id === selectedId)
+    if (model) {
+      const { api } = await import('@renderer/api/client')
+      const { unwrap } = await import('@renderer/api/client')
+      await unwrap(
+        api.settings.set({
+          activeProvider: model.provider,
+          activeModel: model.id
+        })
+      )
+      useSettingsStore.getState().load()
+    }
+  }
+
   const header = (
     <>
       <Brain size={13} />
-      <span>AI Analysis</span>
-      {result?.unparsed && (
+      {/* Tab Switcher */}
+      <div className="flex gap-0.5 bg-bg-tertiary rounded p-0.5">
+        <button
+          onClick={() => setTab('analysis')}
+          className={`px-2 py-0.5 rounded text-[11px] font-medium transition-colors ${tab === 'analysis'
+              ? 'bg-bg-primary text-fg-primary shadow-sm'
+              : 'text-fg-muted hover:text-fg-secondary'
+            }`}
+        >
+          Analysis
+        </button>
+        <button
+          onClick={() => setTab('chat')}
+          className={`px-2 py-0.5 rounded text-[11px] font-medium transition-colors flex items-center gap-1 ${tab === 'chat'
+              ? 'bg-bg-primary text-fg-primary shadow-sm'
+              : 'text-fg-muted hover:text-fg-secondary'
+            }`}
+        >
+          <MessageSquare size={10} />
+          Chat
+        </button>
+      </div>
+      {tab === 'analysis' && result?.unparsed && (
         <Badge tone="warning" title="Model returned unstructured output">
           unparsed
         </Badge>
       )}
-      {result && !result.unparsed && (
+      {tab === 'analysis' && result && !result.unparsed && (
         <Badge tone="success" dot>
           cached
         </Badge>
@@ -59,38 +111,60 @@ export function AIContextPanel({ onOpenSettings }: Props) {
 
   const actions = (
     <>
-      <label className="flex items-center gap-1.5 text-xs text-fg-secondary cursor-pointer mr-1" title="Auto-analyze on commit select">
-        <input
-          type="checkbox"
-          checked={autoAnalyze}
-          onChange={() => toggleAutoAnalyze()}
-          className="accent-accent-primary w-3.5 h-3.5 cursor-pointer"
-        />
-        Auto
-      </label>
-      <Button
-        size="sm"
-        variant="ghost"
-        disabled={!commit || !hasKey}
-        onClick={() => analyzeSelected(true)}
-        title="Re-analyze (⌘R)"
+      {/* Model Selector Dropdown */}
+      <select
+        value={activeModel}
+        onChange={handleModelChange}
+        className="bg-bg-tertiary border border-border rounded px-1.5 py-0.5 text-[10.5px] text-fg-secondary font-mono cursor-pointer focus:outline-none focus:border-accent transition-colors max-w-[130px] truncate"
+        title="Select AI model"
       >
-        <RefreshCw size={13} />
-      </Button>
-      <Button
-        size="sm"
-        variant="ghost"
-        disabled={!result}
-        onClick={() => {
-          if (result) {
-            navigator.clipboard.writeText(result.rawMarkdown)
-            toast({ kind: 'success', title: 'Copied analysis to clipboard' })
-          }
-        }}
-        title="Copy markdown"
-      >
-        <Copy size={13} />
-      </Button>
+        {Object.entries(LLM_MODELS).map(([provider, models]) => (
+          <optgroup key={provider} label={provider.charAt(0).toUpperCase() + provider.slice(1)}>
+            {models.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.name}
+              </option>
+            ))}
+          </optgroup>
+        ))}
+      </select>
+
+      {tab === 'analysis' && (
+        <>
+          <label className="flex items-center gap-1.5 text-xs text-fg-secondary cursor-pointer mr-1" title="Auto-analyze on commit select">
+            <input
+              type="checkbox"
+              checked={autoAnalyze}
+              onChange={() => toggleAutoAnalyze()}
+              className="accent-accent-primary w-3.5 h-3.5 cursor-pointer"
+            />
+            Auto
+          </label>
+          <Button
+            size="sm"
+            variant="ghost"
+            disabled={!commit || !hasKey}
+            onClick={() => analyzeSelected(true)}
+            title="Re-analyze (⌘R)"
+          >
+            <RefreshCw size={13} />
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            disabled={!result}
+            onClick={() => {
+              if (result) {
+                navigator.clipboard.writeText(result.rawMarkdown)
+                toast({ kind: 'success', title: 'Copied analysis to clipboard' })
+              }
+            }}
+            title="Copy markdown"
+          >
+            <Copy size={13} />
+          </Button>
+        </>
+      )}
       <Button
         size="sm"
         variant="ghost"
@@ -102,6 +176,33 @@ export function AIContextPanel({ onOpenSettings }: Props) {
     </>
   )
 
+  // Chat tab body
+  if (tab === 'chat') {
+    if (!hasKey) {
+      return (
+        <Panel title={header} rightSlot={actions} bodyClassName="p-0">
+          <EmptyState
+            icon={<KeyRound size={28} />}
+            title="API key required"
+            description="Set your Claude API key to use AI Chat."
+            action={
+              <Button variant="primary" size="sm" onClick={onOpenSettings}>
+                Open Settings
+              </Button>
+            }
+          />
+        </Panel>
+      )
+    }
+
+    return (
+      <Panel title={header} rightSlot={actions} bodyClassName="p-0">
+        <AIChatbox />
+      </Panel>
+    )
+  }
+
+  // Analysis tab body
   let body: React.ReactNode
 
   if (!path || !commit) {

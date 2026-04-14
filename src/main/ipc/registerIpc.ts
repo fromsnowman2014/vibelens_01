@@ -1,6 +1,7 @@
 import { BrowserWindow, dialog, ipcMain, shell } from 'electron'
 import fs from 'fs/promises'
 import path from 'path'
+import { rebuildMenu } from '../index'
 import {
   checkIsRepo,
   cloneRepo,
@@ -31,10 +32,34 @@ import {
   saveKey
 } from '../services/keychainService'
 import { claudeProvider } from '../services/llm/ClaudeProvider'
+import type { LLMProvider } from '../services/llm/LLMProvider'
 import { logger } from '../utils/logger'
-import type { AnalysisResult, Language } from '@shared/types'
+import type { AnalysisResult, Language, ProviderId } from '@shared/types'
 
 const activeAnalyses = new Map<string, AbortController>()
+
+/**
+ * Returns the active LLM provider based on user settings.
+ * Falls back to claudeProvider if the selected provider is not yet implemented.
+ */
+function getActiveProvider(): LLMProvider {
+  const settings = getSettings()
+  switch (settings.activeProvider) {
+    case 'claude':
+      return claudeProvider
+    case 'gemini':
+      // TODO: Implement GeminiProvider
+      logger.warn('Gemini provider not yet implemented, falling back to Claude')
+      return claudeProvider
+    case 'openai':
+      // TODO: Implement OpenAIProvider
+      logger.warn('OpenAI provider not yet implemented, falling back to Claude')
+      return claudeProvider
+    default:
+      logger.warn(`Unknown provider ${settings.activeProvider}, falling back to Claude`)
+      return claudeProvider
+  }
+}
 
 function analysisKey(repoPath: string, hash: string, lang: Language): string {
   return `${repoPath}::${hash}::${lang}`
@@ -71,7 +96,8 @@ export function registerIpc(): void {
       if (!valid) {
         return { path: p, valid: false, reason: 'Not a Git repository (no .git directory).' }
       }
-      addRecentRepo(p)
+      const branches = await getBranches(p)
+      addRecentRepo(p, branches.current)
       return { path: p, valid: true }
     })
   )
@@ -86,7 +112,8 @@ export function registerIpc(): void {
         await cloneRepo(url, dest)
         const valid = await checkIsRepo(dest)
         if (!valid) throw new Error('Clone completed but directory is not a valid git repo.')
-        addRecentRepo(dest)
+        const branches = await getBranches(dest)
+        addRecentRepo(dest, branches.current)
         return { path: dest, valid: true }
       })
   )
@@ -158,26 +185,38 @@ export function registerIpc(): void {
   // -------- keychain --------
   ipcMain.handle(
     'keychain:save',
-    async (_e, { provider, key }: { provider: 'claude'; key: string }) =>
+    async (_e, { provider, key }: { provider: ProviderId; key: string }) =>
       wrap(async () => {
         if (!key || key.length < 8) throw new Error('API key looks invalid.')
         await saveKey(provider, key.trim())
         return { hasKey: true }
       })
   )
-  ipcMain.handle('keychain:has', async (_e, { provider }: { provider: 'claude' }) =>
+  ipcMain.handle('keychain:has', async (_e, { provider }: { provider: ProviderId }) =>
     wrap(async () => ({ hasKey: await hasKey(provider) }))
   )
-  ipcMain.handle('keychain:delete', async (_e, { provider }: { provider: 'claude' }) =>
+  ipcMain.handle('keychain:delete', async (_e, { provider }: { provider: ProviderId }) =>
     wrap(async () => {
       await deleteKey(provider)
       return { hasKey: false }
     })
   )
-  ipcMain.handle('keychain:test', async (_e, { provider }: { provider: 'claude' }) =>
+  ipcMain.handle('keychain:test', async (_e, { provider }: { provider: ProviderId }) =>
     wrap(async () => {
-      if (provider !== 'claude') throw new Error('Unsupported provider')
-      return claudeProvider.ping()
+      // Get provider instance by provider ID
+      let testProvider: LLMProvider
+      switch (provider) {
+        case 'claude':
+          testProvider = claudeProvider
+          break
+        case 'gemini':
+          throw new Error('Gemini provider not yet implemented')
+        case 'openai':
+          throw new Error('OpenAI provider not yet implemented')
+        default:
+          throw new Error(`Unknown provider: ${provider}`)
+      }
+      return testProvider.ping()
     })
   )
 
@@ -253,7 +292,8 @@ export function registerIpc(): void {
         const ac = new AbortController()
         activeAnalyses.set(key, ac)
         try {
-          const result: AnalysisResult = await claudeProvider.analyzeCommit({
+          const provider = getActiveProvider()
+          const result: AnalysisResult = await provider.analyzeCommit({
             commit,
             diffText,
             language,
@@ -300,6 +340,31 @@ export function registerIpc(): void {
       }
     })
   )
+
+  // -------- chat --------
+  ipcMain.handle(
+    'chat:send',
+    async (
+      _e,
+      {
+        messages,
+        context
+      }: {
+        messages: { role: 'user' | 'assistant'; content: string }[]
+        context?: string
+      }
+    ) =>
+      wrap(async () => {
+        const provider = getActiveProvider()
+        return provider.chatWithContext(messages, context)
+      })
+  )
+
+  // -------- menu --------
+  // Rebuild menu whenever a repo is opened/closed (to refresh Open Recent)
+  ipcMain.on('menu:rebuildNeeded', () => {
+    rebuildMenu()
+  })
 
   logger.info('IPC handlers registered')
 }

@@ -72,6 +72,11 @@ export function App() {
     const off6 = api.on('menu:closeRepo', () => {
       useRepoStore.getState().closeRepo()
     })
+    const off7 = api.on('menu:openRecentRepo', (path: unknown) => {
+      if (typeof path === 'string') {
+        useRepoStore.getState().openRepoByPath(path)
+      }
+    })
     return () => {
       off1()
       off2()
@@ -79,6 +84,7 @@ export function App() {
       off4()
       off5()
       off6()
+      off7()
     }
   }, [])
 

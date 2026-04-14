@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { Panel } from '@renderer/components/primitives/Panel'
 import { CommitTimeline } from './CommitTimeline'
 import { useRepoStore } from '@renderer/stores/repoStore'
@@ -7,11 +7,20 @@ import { toast } from '@renderer/components/primitives/Toast'
 
 export function LeftPanel() {
   const { commits, commitsHasMore, commitsLoading, refreshCommits } = useRepoStore()
-  const [searchQuery, setSearchQuery] = useState('')
+  const [searchInput, setSearchInput] = useState('')
+  const [debouncedQuery, setDebouncedQuery] = useState('')
+
+  // Debounce search query by 300ms
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedQuery(searchInput)
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [searchInput])
 
   const filteredCommits = useMemo(() => {
-    if (!searchQuery.trim()) return commits
-    const q = searchQuery.toLowerCase().trim()
+    if (!debouncedQuery.trim()) return commits
+    const q = debouncedQuery.toLowerCase().trim()
     return commits.filter(
       (c) =>
         c.message.toLowerCase().includes(q) ||
@@ -20,7 +29,7 @@ export function LeftPanel() {
         c.hash.toLowerCase().includes(q) ||
         c.author.toLowerCase().includes(q)
     )
-  }, [commits, searchQuery])
+  }, [commits, debouncedQuery])
 
   const handleRefresh = async () => {
     try {
@@ -35,7 +44,7 @@ export function LeftPanel() {
     }
   }
 
-  const isFiltered = searchQuery.trim().length > 0
+  const isFiltered = debouncedQuery.trim().length > 0
 
   return (
     <Panel
@@ -71,14 +80,14 @@ export function LeftPanel() {
           />
           <input
             type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
             placeholder="Search commits…"
             className="w-full pl-8 pr-7 py-1.5 bg-bg-tertiary border border-border rounded text-[12px] text-fg-primary placeholder:text-fg-muted/60 focus:outline-none focus:border-accent transition-colors"
           />
-          {searchQuery && (
+          {searchInput && (
             <button
-              onClick={() => setSearchQuery('')}
+              onClick={() => setSearchInput('')}
               className="absolute right-2 text-fg-muted hover:text-fg-primary transition-colors"
               title="Clear search"
             >

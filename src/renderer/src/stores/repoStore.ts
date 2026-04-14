@@ -95,6 +95,9 @@ export const useRepoStore = create<RepoState>((set, get) => ({
         new CustomEvent('vibelens:ask-gitignore', { detail: { path: result.path } })
       )
     }
+
+    // Notify main process to rebuild native menu (Open Recent)
+    api.send('menu:rebuildNeeded')
   },
 
   openRepoByPath: async (repoPath: string) => {
@@ -121,6 +124,9 @@ export const useRepoStore = create<RepoState>((set, get) => ({
         new CustomEvent('vibelens:ask-gitignore', { detail: { path: repoPath } })
       )
     }
+
+    // Notify main process to rebuild native menu (Open Recent)
+    api.send('menu:rebuildNeeded')
   },
 
   closeRepo: () => {

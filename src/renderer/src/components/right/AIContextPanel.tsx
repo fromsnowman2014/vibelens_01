@@ -258,15 +258,50 @@ export function AIContextPanel({ onOpenSettings }: Props) {
     )
   } else if (result) {
     body = (
-      <div className="p-4 ai-prose selectable">
-        <div className="mb-3 flex flex-wrap items-center gap-1.5">
+      <div className="p-4 space-y-4">
+        {/* Metadata Badges */}
+        <div className="flex flex-wrap items-center gap-1.5">
           <Badge tone="info">{result.model}</Badge>
           <Badge tone="neutral">{result.language.toUpperCase()}</Badge>
           <Badge tone="neutral">
             {result.tokensIn + result.tokensOut} tokens
           </Badge>
         </div>
-        <ReactMarkdown remarkPlugins={[remarkGfm]}>{result.rawMarkdown}</ReactMarkdown>
+
+        {/* 🆕 Estimated Prompt Card - Highest Priority */}
+        {result.estimatedPrompt && (
+          <div className="bg-gradient-to-r from-accent/10 to-bg-tertiary border-l-4 border-accent p-4 rounded-lg shadow-sm">
+            <div className="flex items-center gap-2 mb-2">
+              <Sparkles size={16} className="text-accent" />
+              <h3 className="text-sm font-bold text-fg-primary">
+                Estimated Prompt
+              </h3>
+            </div>
+            <blockquote className="text-base italic text-fg-primary border-l-2 border-accent pl-3 mb-3">
+              "{result.estimatedPrompt.primary}"
+            </blockquote>
+            <p className="text-xs text-fg-muted leading-relaxed">
+              {result.estimatedPrompt.reasoning}
+            </p>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="mt-2"
+              onClick={() => {
+                navigator.clipboard.writeText(result.estimatedPrompt!.primary)
+                toast({ kind: 'success', title: 'Prompt copied!' })
+              }}
+            >
+              <Copy size={12} className="mr-1" />
+              Copy Prompt
+            </Button>
+          </div>
+        )}
+
+        {/* Main Analysis Content */}
+        <div className="ai-prose selectable">
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>{result.rawMarkdown}</ReactMarkdown>
+        </div>
       </div>
     )
   } else {

@@ -2,7 +2,7 @@
 
 > **목적**: 문제 분석, 개선, 기능 추가 시 전체 소스 구조를 매번 검색하지 않고, 이 맵 파일을 통해 해당 파일 및 함수에 직접 접근하여 토큰을 효율적으로 사용하고 vibe coding을 가능하게 합니다.
 
-**Last Updated**: 2026-04-13 (Phase 2/3-A - 검색 필터, Recent Repos 개선)
+**Last Updated**: 2026-04-22 (Phase 4 - Commit Detail Drawer, Resizable Panels)
 
 ---
 
@@ -399,6 +399,17 @@ vibelens_01/
 
 ---
 
+##### UI Store (`stores/uiStore.ts`) **[Phase 4 추가]**
+
+**상태**:
+- `commitDetailDrawer: { isOpen: boolean, commitHash: string | null }` - Drawer 상태
+
+**액션**:
+- `openCommitDetail(hash)` - 커밋 상세 drawer 열기
+- `closeCommitDetail()` - Drawer 닫기
+
+---
+
 #### 4.4 Components
 
 ##### Layout
@@ -409,6 +420,9 @@ vibelens_01/
 
 **ThreePanelLayout** (`components/layout/ThreePanelLayout.tsx`)
 - 3단 레이아웃 (Left: 커밋 타임라인, Center: Diff 뷰어, Right: AI 패널)
+- **[Phase 4]** react-resizable-panels 사용 (PanelGroup, Panel, PanelResizeHandle)
+- 사용자가 패널 너비 조정 가능 (드래그로 리사이즈)
+- localStorage에 레이아웃 상태 자동 저장
 
 **StatusBar** (`components/layout/StatusBar.tsx`)
 - 하단 상태 표시 (브랜치, 커밋 개수, 캐시 상태 등)
@@ -451,6 +465,15 @@ vibelens_01/
 - 캐시 여부 뱃지 표시
 - **[Phase 3-A]** `filteredCommits?: Commit[]` prop 수신 → 필터링된 목록 렌더링
 - 검색 결과 없을 때 `EmptyState` 표시
+- **[Phase 4]** Expand icon 버튼 (hover 시 ChevronRight 아이콘 표시)
+  - 커밋 클릭: 선택 (diff 표시)
+  - Chevron 아이콘 클릭: CommitDetailDrawer 열기
+
+**CommitDetailDrawer** (`components/left/CommitDetailDrawer.tsx`) **[Phase 4 추가]**
+- Bottom drawer 패턴으로 커밋 상세 정보 표시
+- Full title (truncate 없음), metadata, full message body
+- Copy hash/message 버튼
+- `useUIStore`와 연동
 
 ---
 
@@ -518,6 +541,13 @@ vibelens_01/
 **Panel** (`components/primitives/Panel.tsx`)
 - 패널 컨테이너 (border, padding)
 
+**Drawer** (`components/primitives/Drawer.tsx`) **[Phase 4 추가]**
+- Radix UI Dialog 기반 bottom drawer primitive
+- Props: open, onOpenChange, title, children
+- 중앙 정렬 (max-width: 768px), 70vh max-height
+- 40% 투명도 backdrop
+- ESC, backdrop click, close button으로 닫기
+
 **Modal** (`components/modals/Modal.tsx`)
 - 모달 베이스 컴포넌트
 
@@ -538,6 +568,14 @@ vibelens_01/
 **cx** (`lib/cx.ts`)
 - `clsx` + `tailwind-merge` 래퍼
 - 조건부 클래스네임 합성
+
+**format** (`lib/format.ts`)
+- `formatRelativeTime(timestamp)` - 상대 시간 표시 ("Just now", "2m ago", etc.)
+- `shortenPath(path)` - 경로 축약 (`/Users/name/...` → `~/...`)
+
+**parseCommitMessage** (`lib/parseCommitMessage.ts`) **[Phase 4 추가]**
+- `parseCommitMessage(message)` - 커밋 메시지를 subject와 body로 분리
+- Returns: `{ subject, body, hasBody }`
 
 ---
 
@@ -632,6 +670,8 @@ vibelens_01/
 - `prismjs` - 문법 하이라이팅
 - `lucide-react` - 아이콘
 - `tailwindcss` - 스타일링
+- `react-resizable-panels` - 리사이즈 가능한 패널 **[Phase 4 추가]**
+- `@radix-ui/react-dialog` - Drawer primitive **[Phase 4 추가]**
 
 ---
 
@@ -682,30 +722,53 @@ vibelens_01/
 
 ---
 
-**마지막 업데이트**: 2026-04-13 (Phase 1 - Welcome Screen 추가)
+**마지막 업데이트**: 2026-04-22 (Phase 4 - Commit Detail Drawer, Resizable Panels)
 
 이 문서는 VibeLens 프로젝트의 모든 주요 함수와 파일 위치를 정리하여, 개발자가 빠르게 코드베이스를 탐색하고 수정할 수 있도록 돕습니다.
 
 ---
 
-## 📝 Phase 1 변경 사항 (2026-04-13)
+## 📝 변경 이력
 
-### 새로 추가된 컴포넌트
+### Phase 4 (2026-04-22) - Commit Detail Drawer & Resizable Panels
+
+**새로 추가된 컴포넌트**:
+- `Drawer.tsx` - Radix UI Dialog 기반 bottom drawer primitive
+- `CommitDetailDrawer.tsx` - 커밋 상세 정보 drawer
+- `uiStore.ts` - UI 상태 관리 (drawer 상태)
+- `parseCommitMessage.ts` - 커밋 메시지 파싱 유틸리티
+
+**주요 변경**:
+- `ThreePanelLayout.tsx` - react-resizable-panels로 전환
+- `CommitTimeline.tsx` - Expand icon 버튼 패턴 추가
+- 새로운 의존성: `@radix-ui/react-dialog`, `react-resizable-panels`
+
+**UX 개선**:
+- 사용자 조정 가능한 패널 너비 (드래그 리사이즈)
+- Bottom drawer로 전체 커밋 정보 표시
+- Expand icon 버튼으로 의도적인 drawer 트리거
+
+### Phase 3-A (2026-04-13) - 검색 필터 & Recent Repos 개선
+
+**새로운 기능**:
+- 커밋 검색 필터 (`LeftPanel.tsx`)
+- 디바운싱된 검색 입력 (300ms)
+- Recent Repos 정렬 및 상대 시간 표시
+- 경로 축약 유틸리티 (`shortenPath`)
+
+### Phase 1 (2026-04-13) - Welcome Screen
+
+**새로 추가된 컴포넌트**:
 - `WelcomeScreen.tsx` - 레포가 없을 때 표시되는 환영 화면
 - `ActionCard.tsx` - 재사용 가능한 액션 카드
 - `RecentReposList.tsx` - 최근 레포 목록 표시
 
-### 타입 변경
+**타입 변경**:
 - `RecentRepo` 타입 추가 (path, name, lastOpened?, branch?)
 - `Settings.recentRepos` 타입 변경: `string[]` → `RecentRepo[]`
 
-### 새로운 기능
+**새로운 기능**:
 - File 메뉴에 Clone Repository, Close Repository 추가
 - `repoStore.closeRepo()` 액션 추가
 - `settingsService.addRecentRepo()` 업데이트 (RecentRepo 타입 지원)
 - 자동 마이그레이션 로직 (기존 string[] → RecentRepo[])
-
-### UI 개선
-- 플랫폼별 키보드 단축키 표시 (⌘ / Ctrl)
-- Lucide React 아이콘 사용
-- Catppuccin Mocha 디자인 시스템 준수

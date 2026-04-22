@@ -9,6 +9,7 @@ import { api, unwrap } from '@renderer/api/client'
 import { toast } from '@renderer/components/primitives/Toast'
 import { KeyRound, Trash2, CheckCircle2, XCircle, Loader2 } from 'lucide-react'
 import { DEFAULT_CLAUDE_MODEL } from '@shared/types'
+import type { ProviderId } from '@shared/types'
 
 interface Props {
   open: boolean
@@ -17,31 +18,36 @@ interface Props {
 
 type Tab = 'keys' | 'analysis' | 'cache' | 'about'
 
-export function SettingsModal({ open, onClose }: Props) {
-  const [tab, setTab] = useState<Tab>('keys')
-  const { settings, hasClaudeKey, saveClaudeKey, deleteClaudeKey, setLanguage } =
-    useSettingsStore()
-  const { path, refreshCachedHashes } = useRepoStore()
-  const clearAnalysisCache = useAnalysisStore((s) => s.clearForRepo)
-
+// ProviderKeySection: Reusable component for managing API keys per provider
+function ProviderKeySection({
+  provider,
+  title,
+  description,
+  consoleUrl
+}: {
+  provider: ProviderId
+  title: string
+  description: string
+  consoleUrl: string
+}) {
+  const { providerKeyStatus, refreshProviderKey } = useSettingsStore()
   const [apiKey, setApiKey] = useState('')
   const [testing, setTesting] = useState(false)
-  const [testResult, setTestResult] = useState<{ ok: boolean; error?: string } | null>(null)
   const [saving, setSaving] = useState(false)
+  const [testResult, setTestResult] = useState<{ ok: boolean; error?: string } | null>(null)
+
+  const hasKey = providerKeyStatus[provider]
 
   async function handleSave() {
     if (!apiKey.trim()) return
     setSaving(true)
     try {
-      await saveClaudeKey(apiKey.trim())
+      await unwrap(api.keychain.save(provider, apiKey.trim()))
+      await refreshProviderKey(provider)
       setApiKey('')
-      toast({ kind: 'success', title: 'API key saved to Keychain' })
+      toast({ kind: 'success', title: `${title} API key saved` })
     } catch (e) {
-      toast({
-        kind: 'error',
-        title: 'Failed to save key',
-        description: e instanceof Error ? e.message : String(e)
-      })
+      toast({ kind: 'error', title: 'Failed to save key', description: String(e) })
     } finally {
       setSaving(false)
     }
@@ -51,17 +57,17 @@ export function SettingsModal({ open, onClose }: Props) {
     setTesting(true)
     setTestResult(null)
     try {
-      const r = await unwrap(api.keychain.test('claude'))
+      const r = await unwrap(api.keychain.test(provider))
       setTestResult(r)
-      if (r.ok) {
-        toast({ kind: 'success', title: 'Claude API key works' })
-      } else {
-        toast({ kind: 'error', title: 'API key test failed', description: r.error })
-      }
+      toast({
+        kind: r.ok ? 'success' : 'error',
+        title: r.ok ? `${title} API key works` : 'API key test failed',
+        description: r.error
+      })
     } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e)
+      const msg = String(e)
       setTestResult({ ok: false, error: msg })
-      toast({ kind: 'error', title: 'API key test failed', description: msg })
+      toast({ kind: 'error', title: 'Test failed', description: msg })
     } finally {
       setTesting(false)
     }
@@ -69,17 +75,104 @@ export function SettingsModal({ open, onClose }: Props) {
 
   async function handleDelete() {
     try {
-      await deleteClaudeKey()
+      await unwrap(api.keychain.delete(provider))
+      await refreshProviderKey(provider)
       setTestResult(null)
-      toast({ kind: 'info', title: 'API key deleted' })
+      toast({ kind: 'info', title: `${title} API key deleted` })
     } catch (e) {
-      toast({
-        kind: 'error',
-        title: 'Failed to delete key',
-        description: e instanceof Error ? e.message : String(e)
-      })
+      toast({ kind: 'error', title: 'Failed to delete', description: String(e) })
     }
   }
+
+  return (
+    <div className="border-b border-border pb-4 last:border-b-0 last:pb-0">
+      <div className="text-[13px] font-semibold text-fg-primary mb-1 flex items-center gap-2">
+        <KeyRound size={14} /> {title}
+      </div>
+      <div className="text-[12px] text-fg-secondary mb-3">{description}</div>
+
+      <div className="flex items-center gap-2 mb-2">
+        <span className="text-[11.5px] text-fg-muted">Status:</span>
+        {hasKey ? (
+          <Badge tone="success" dot>
+            Stored
+          </Badge>
+        ) : (
+          <Badge tone="warning" dot>
+            Not set
+          </Badge>
+        )}
+        {testResult?.ok && (
+          <Badge tone="success">
+            <CheckCircle2 size={10} className="mr-1" />
+            Verified
+          </Badge>
+        )}
+      </div>
+
+      <div className="flex items-center gap-2">
+        <input
+          type="password"
+          placeholder={provider === 'claude' ? 'sk-ant-...' : provider === 'gemini' ? 'AI...' : 'sk-...'}
+          value={apiKey}
+          onChange={(e) => setApiKey(e.target.value)}
+          className="flex-1 bg-bg-tertiary border border-border rounded px-2.5 py-1.5 text-[12.5px] font-mono text-fg-primary focus:outline-none focus:border-accent"
+        />
+        <Button
+          size="sm"
+          variant="primary"
+          onClick={handleSave}
+          loading={saving}
+          disabled={!apiKey.trim()}
+        >
+          Save
+        </Button>
+      </div>
+
+      <div className="flex items-center gap-2 mt-3">
+        <Button
+          size="sm"
+          variant="secondary"
+          onClick={handleTest}
+          disabled={!hasKey}
+          loading={testing}
+        >
+          Test Connection
+        </Button>
+        <Button size="sm" variant="ghost" onClick={handleDelete} disabled={!hasKey}>
+          <Trash2 size={13} /> Delete
+        </Button>
+      </div>
+
+      {testResult && !testResult.ok && (
+        <div className="mt-3 p-2.5 rounded bg-state-error/10 border border-state-error/30 text-[12px] text-state-error flex items-start gap-2">
+          <XCircle size={14} className="flex-shrink-0 mt-0.5" />
+          <span className="selectable">{testResult.error}</span>
+        </div>
+      )}
+
+      <div className="mt-4 text-[11.5px] text-fg-muted">
+        Get a key at{' '}
+        <a
+          href="#"
+          onClick={(e) => {
+            e.preventDefault()
+            api.app.openExternal(consoleUrl)
+          }}
+          className="text-accent hover:text-accent-hover"
+        >
+          {consoleUrl.replace('https://', '')}
+        </a>
+      </div>
+    </div>
+  )
+}
+
+export function SettingsModal({ open, onClose }: Props) {
+  const [tab, setTab] = useState<Tab>('keys')
+  const { settings, setLanguage } = useSettingsStore()
+  const { path, refreshCachedHashes } = useRepoStore()
+  const clearAnalysisCache = useAnalysisStore((s) => s.clearForRepo)
 
   async function handleClearCache() {
     if (!path) return
@@ -123,92 +216,28 @@ export function SettingsModal({ open, onClose }: Props) {
 
         <div className="flex-1 p-5 space-y-4">
           {tab === 'keys' && (
-            <>
-              <div>
-                <div className="text-[13px] font-semibold text-fg-primary mb-1 flex items-center gap-2">
-                  <KeyRound size={14} /> Anthropic Claude
-                </div>
-                <div className="text-[12px] text-fg-secondary mb-3">
-                  Your API key is stored in the macOS Keychain and never leaves your machine
-                  except when making requests to Anthropic.
-                </div>
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="text-[11.5px] text-fg-muted">Status:</span>
-                  {hasClaudeKey ? (
-                    <Badge tone="success" dot>
-                      Stored
-                    </Badge>
-                  ) : (
-                    <Badge tone="warning" dot>
-                      Not set
-                    </Badge>
-                  )}
-                  {testResult?.ok && (
-                    <Badge tone="success">
-                      <CheckCircle2 size={10} className="mr-1" />
-                      Verified
-                    </Badge>
-                  )}
-                </div>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="password"
-                    placeholder="sk-ant-..."
-                    value={apiKey}
-                    onChange={(e) => setApiKey(e.target.value)}
-                    className="flex-1 bg-bg-tertiary border border-border rounded px-2.5 py-1.5 text-[12.5px] font-mono text-fg-primary focus:outline-none focus:border-accent"
-                  />
-                  <Button
-                    size="sm"
-                    variant="primary"
-                    onClick={handleSave}
-                    loading={saving}
-                    disabled={!apiKey.trim()}
-                  >
-                    Save
-                  </Button>
-                </div>
-                <div className="flex items-center gap-2 mt-3">
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    onClick={handleTest}
-                    disabled={!hasClaudeKey}
-                    loading={testing}
-                  >
-                    {testing ? 'Testing…' : 'Test Connection'}
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={handleDelete}
-                    disabled={!hasClaudeKey}
-                  >
-                    <Trash2 size={13} /> Delete
-                  </Button>
-                </div>
-                {testResult && !testResult.ok && (
-                  <div className="mt-3 p-2.5 rounded bg-state-error/10 border border-state-error/30 text-[12px] text-state-error flex items-start gap-2">
-                    <XCircle size={14} className="flex-shrink-0 mt-0.5" />
-                    <span className="selectable">{testResult.error}</span>
-                  </div>
-                )}
-                <div className="mt-4 text-[11.5px] text-fg-muted">
-                  Get a key at{' '}
-                  <a
-                    href="#"
-                    onClick={(e) => {
-                      e.preventDefault()
-                      api.app.openExternal('https://console.anthropic.com/settings/keys')
-                    }}
-                    className="text-accent hover:text-accent-hover"
-                  >
-                    console.anthropic.com
-                  </a>
-                  .
-                </div>
-              </div>
-            </>
+            <div className="space-y-6">
+              <ProviderKeySection
+                provider="claude"
+                title="Anthropic Claude"
+                description="Your API key is stored in the macOS Keychain and never leaves your machine except when making requests to Anthropic."
+                consoleUrl="https://console.anthropic.com/settings/keys"
+              />
+
+              <ProviderKeySection
+                provider="gemini"
+                title="Google Gemini"
+                description="Get a Gemini API key from Google AI Studio. Your key is stored securely in the macOS Keychain."
+                consoleUrl="https://aistudio.google.com/app/apikey"
+              />
+
+              <ProviderKeySection
+                provider="openai"
+                title="OpenAI"
+                description="Manage your OpenAI API keys from the OpenAI platform. Keys are stored securely in the macOS Keychain."
+                consoleUrl="https://platform.openai.com/api-keys"
+              />
+            </div>
           )}
 
           {tab === 'analysis' && (

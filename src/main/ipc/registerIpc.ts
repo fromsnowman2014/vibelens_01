@@ -28,6 +28,7 @@ import {
 } from '../services/settingsService'
 import {
   deleteKey,
+  getAllKeyStatus,
   hasKey,
   saveKey
 } from '../services/keychainService'
@@ -218,6 +219,9 @@ export function registerIpc(): void {
       }
       return testProvider.ping()
     })
+  )
+  ipcMain.handle('keychain:status-all', async () =>
+    wrap(async () => getAllKeyStatus())
   )
 
   // -------- cache --------

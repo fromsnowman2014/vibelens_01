@@ -1,10 +1,11 @@
 import { create } from 'zustand'
-import type { Language, Settings } from '@shared/types'
+import type { Language, ProviderId, Settings } from '@shared/types'
 import { api, unwrap } from '../api/client'
 
 interface SettingsState {
   settings: Settings | null
-  hasClaudeKey: boolean
+  hasClaudeKey: boolean // Deprecated: use providerKeyStatus.claude instead (kept for backward compat)
+  providerKeyStatus: Record<ProviderId, boolean>
   loaded: boolean
   load: () => Promise<void>
   acceptConsent: () => Promise<void>
@@ -14,17 +15,24 @@ interface SettingsState {
   deleteClaudeKey: () => Promise<void>
   toggleAutoAnalyze: () => Promise<void>
   refreshKeyPresence: () => Promise<void>
+  refreshProviderKey: (provider: ProviderId) => Promise<void>
 }
 
 export const useSettingsStore = create<SettingsState>((set, get) => ({
   settings: null,
   hasClaudeKey: false,
+  providerKeyStatus: { claude: false, gemini: false, openai: false },
   loaded: false,
 
   load: async () => {
     const settings = await unwrap(api.settings.get())
-    const { hasKey } = await unwrap(api.keychain.has('claude'))
-    set({ settings, hasClaudeKey: hasKey, loaded: true })
+    const keyStatus = await unwrap(api.keychain.getAllStatus())
+    set({
+      settings,
+      providerKeyStatus: keyStatus,
+      hasClaudeKey: keyStatus.claude, // Backward compat
+      loaded: true
+    })
   },
 
   acceptConsent: async () => {
@@ -62,7 +70,19 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   },
 
   refreshKeyPresence: async () => {
-    const { hasKey } = await unwrap(api.keychain.has('claude'))
-    set({ hasClaudeKey: hasKey })
+    const keyStatus = await unwrap(api.keychain.getAllStatus())
+    set({
+      providerKeyStatus: keyStatus,
+      hasClaudeKey: keyStatus.claude // Backward compat
+    })
+  },
+
+  refreshProviderKey: async (provider: ProviderId) => {
+    const { hasKey } = await unwrap(api.keychain.has(provider))
+    const current = get().providerKeyStatus
+    set({
+      providerKeyStatus: { ...current, [provider]: hasKey },
+      hasClaudeKey: provider === 'claude' ? hasKey : get().hasClaudeKey
+    })
   }
 }))

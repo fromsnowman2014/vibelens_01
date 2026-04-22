@@ -77,7 +77,9 @@ const api = {
     delete: (provider: ProviderId) =>
       invoke<{ hasKey: boolean }>('keychain:delete', { provider }),
     test: (provider: ProviderId) =>
-      invoke<{ ok: boolean; error?: string }>('keychain:test', { provider })
+      invoke<{ ok: boolean; error?: string }>('keychain:test', { provider }),
+    getAllStatus: () =>
+      invoke<Record<ProviderId, boolean>>('keychain:status-all')
   },
   app: {
     openExternal: (url: string) => invoke<boolean>('app:openExternal', { url }),

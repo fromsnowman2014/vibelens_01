@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Panel } from '@renderer/components/primitives/Panel'
 import { useRepoStore } from '@renderer/stores/repoStore'
 import { useAnalysisStore } from '@renderer/stores/analysisStore'
@@ -18,7 +18,12 @@ import {
   KeyRound,
   AlertCircle,
   Sparkles,
-  MessageSquare
+  MessageSquare,
+  Lock,
+  Check,
+  CheckCircle2,
+  Settings,
+  ChevronDown
 } from 'lucide-react'
 import { toast } from '@renderer/components/primitives/Toast'
 import { LLM_MODELS } from '@shared/types'
@@ -30,6 +35,124 @@ interface Props {
 
 type PanelTab = 'analysis' | 'chat'
 
+// ModelSelector: Custom dropdown for selecting LLM models with API key status
+function ModelSelector({
+  activeModel,
+  providerKeyStatus,
+  onModelChange,
+  onOpenSettings
+}: {
+  activeModel: string
+  providerKeyStatus: Record<ProviderId, boolean>
+  onModelChange: (modelId: string) => void
+  onOpenSettings: (provider?: ProviderId) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const dropdownRef = useRef<HTMLDivElement>(null)
+
+  const allModels = Object.entries(LLM_MODELS).flatMap(([provider, models]) =>
+    models.map((m) => ({ ...m, provider: provider as ProviderId }))
+  )
+
+  const currentModel = allModels.find(m => m.id === activeModel)
+  const hasKey = (provider: ProviderId) => providerKeyStatus[provider]
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    if (!open) return
+
+    function handleClickOutside(e: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setOpen(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [open])
+
+  return (
+    <div className="relative" ref={dropdownRef}>
+      <button
+        onClick={() => setOpen(!open)}
+        className="bg-bg-tertiary border border-border rounded px-1.5 py-0.5 text-[10.5px] text-fg-secondary font-mono cursor-pointer hover:border-accent transition-colors max-w-[150px] truncate flex items-center gap-1"
+        title={`Current model: ${currentModel?.name}`}
+      >
+        <span className="truncate">{currentModel?.name}</span>
+        {currentModel && hasKey(currentModel.provider) ? (
+          <CheckCircle2 size={10} className="text-state-success flex-shrink-0" />
+        ) : (
+          <Lock size={10} className="text-state-warning flex-shrink-0" />
+        )}
+        <ChevronDown size={10} className="flex-shrink-0" />
+      </button>
+
+      {open && (
+        <div className="absolute top-full right-0 mt-1 bg-bg-elevated border border-border-strong rounded shadow-lg py-1 z-50 min-w-[200px] max-h-[300px] overflow-y-auto">
+          {Object.entries(LLM_MODELS).map(([provider, models]) => (
+            <div key={provider}>
+              <div className="px-2 py-1 text-[10px] text-fg-muted uppercase font-semibold tracking-wide">
+                {provider}
+              </div>
+              {models.map((m) => {
+                const available = hasKey(provider as ProviderId)
+                const isActive = m.id === activeModel
+
+                return (
+                  <button
+                    key={m.id}
+                    onClick={() => {
+                      if (available) {
+                        onModelChange(m.id)
+                        setOpen(false)
+                      } else {
+                        // Unavailable model clicked: Open settings with toast
+                        onOpenSettings(provider as ProviderId)
+                        setOpen(false)
+                        toast({
+                          kind: 'info',
+                          title: `${provider.charAt(0).toUpperCase() + provider.slice(1)} API key required`,
+                          description: `Please add your ${provider.charAt(0).toUpperCase() + provider.slice(1)} API key to use ${m.name}`
+                        })
+                      }
+                    }}
+                    className={`w-full text-left px-3 py-1.5 text-[11.5px] flex items-center justify-between transition-colors ${
+                      isActive
+                        ? 'bg-accent/15 text-accent'
+                        : available
+                        ? 'text-fg-primary hover:bg-bg-tertiary cursor-pointer'
+                        : 'text-fg-muted opacity-70 hover:opacity-100 hover:bg-bg-tertiary/50 cursor-pointer'
+                    }`}
+                    title={
+                      !available
+                        ? `Click to setup ${provider.charAt(0).toUpperCase() + provider.slice(1)} API key`
+                        : undefined
+                    }
+                  >
+                    <span className="flex items-center gap-1.5">
+                      {!available && <Lock size={11} className="flex-shrink-0" />}
+                      {m.name}
+                    </span>
+
+                    <div className="flex items-center gap-2">
+                      {!available && (
+                        <span className="text-accent text-[10px] px-1.5 py-0.5 rounded bg-bg-tertiary flex items-center gap-0.5">
+                          <Settings size={10} /> Setup
+                        </span>
+                      )}
+                      {isActive && <Check size={12} className="text-accent flex-shrink-0" />}
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function AIContextPanel({ onOpenSettings }: Props) {
   const [tab, setTab] = useState<PanelTab>('analysis')
   const selectedHash = useRepoStore((s) => s.selectedCommitHash)
@@ -38,6 +161,7 @@ export function AIContextPanel({ onOpenSettings }: Props) {
   const language = useSettingsStore((s) => s.settings?.language ?? 'en')
   const autoAnalyze = useSettingsStore((s) => s.settings?.autoAnalyze ?? false)
   const hasKey = useSettingsStore((s) => s.hasClaudeKey)
+  const providerKeyStatus = useSettingsStore((s) => s.providerKeyStatus)
   const toggleLanguage = useSettingsStore((s) => s.toggleLanguage)
   const toggleAutoAnalyze = useSettingsStore((s) => s.toggleAutoAnalyze)
   const activeProvider = useSettingsStore((s) => s.settings?.activeProvider ?? 'claude')
@@ -50,14 +174,11 @@ export function AIContextPanel({ onOpenSettings }: Props) {
   const result = key ? cache[key] : undefined
   const err = key ? errors[key] : undefined
 
-  // Build flat model list for dropdown
-  const allModels = Object.entries(LLM_MODELS).flatMap(([provider, models]) =>
-    models.map((m) => ({ ...m, provider: provider as ProviderId }))
-  )
-
-  const handleModelChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const selectedId = e.target.value
-    const model = allModels.find((m) => m.id === selectedId)
+  const handleModelChange = async (modelId: string) => {
+    const allModels = Object.entries(LLM_MODELS).flatMap(([provider, models]) =>
+      models.map((m) => ({ ...m, provider: provider as ProviderId }))
+    )
+    const model = allModels.find((m) => m.id === modelId)
     if (model) {
       const { api } = await import('@renderer/api/client')
       const { unwrap } = await import('@renderer/api/client')
@@ -112,22 +233,12 @@ export function AIContextPanel({ onOpenSettings }: Props) {
   const actions = (
     <>
       {/* Model Selector Dropdown */}
-      <select
-        value={activeModel}
-        onChange={handleModelChange}
-        className="bg-bg-tertiary border border-border rounded px-1.5 py-0.5 text-[10.5px] text-fg-secondary font-mono cursor-pointer focus:outline-none focus:border-accent transition-colors max-w-[130px] truncate"
-        title="Select AI model"
-      >
-        {Object.entries(LLM_MODELS).map(([provider, models]) => (
-          <optgroup key={provider} label={provider.charAt(0).toUpperCase() + provider.slice(1)}>
-            {models.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.name}
-              </option>
-            ))}
-          </optgroup>
-        ))}
-      </select>
+      <ModelSelector
+        activeModel={activeModel}
+        providerKeyStatus={providerKeyStatus}
+        onModelChange={handleModelChange}
+        onOpenSettings={onOpenSettings}
+      />
 
       {tab === 'analysis' && (
         <>

@@ -88,3 +88,11 @@ export async function hasKey(provider: ProviderId): Promise<boolean> {
   const k = await getKey(provider)
   return !!k && k.length > 0
 }
+
+export async function getAllKeyStatus(): Promise<Record<ProviderId, boolean>> {
+  return {
+    claude: await hasKey('claude'),
+    gemini: await hasKey('gemini'),
+    openai: await hasKey('openai')
+  }
+}

@@ -2,11 +2,13 @@ import { useEffect, useRef, useCallback } from 'react'
 import { useRepoStore } from '@renderer/stores/repoStore'
 import { useAnalysisStore } from '@renderer/stores/analysisStore'
 import { useSettingsStore } from '@renderer/stores/settingsStore'
+import { useUIStore } from '@renderer/stores/uiStore'
 import { cx } from '@renderer/lib/cx'
 import { Skeleton } from '@renderer/components/primitives/Skeleton'
 import { EmptyState } from '@renderer/components/primitives/EmptyState'
 import { FolderOpen, GitCommit, Search } from 'lucide-react'
 import { Button } from '@renderer/components/primitives/Button'
+import { CommitDetailDrawer } from './CommitDetailDrawer'
 import type { Commit } from '@shared/types'
 
 interface Props {
@@ -49,10 +51,23 @@ function CacheDot({ hash }: { hash: string }) {
   )
 }
 
-function CommitRow({ commit, selected, onClick }: { commit: Commit; selected: boolean; onClick: () => void }) {
+function CommitRow({
+  commit,
+  selected,
+  onSelect,
+  onOpenDetail
+}: {
+  commit: Commit
+  selected: boolean
+  onSelect: () => void
+  onOpenDetail: () => void
+}) {
   return (
     <button
-      onClick={onClick}
+      onClick={() => {
+        onSelect()
+        onOpenDetail()
+      }}
       className={cx(
         'w-full text-left px-3 py-2 border-l-2 flex items-start gap-2.5 transition-colors',
         selected
@@ -66,12 +81,8 @@ function CommitRow({ commit, selected, onClick }: { commit: Commit; selected: bo
           <code className="text-[11px] text-fg-muted font-mono">{commit.shortHash}</code>
           <span className="text-[11px] text-fg-muted">{commit.relativeDate}</span>
         </div>
-        <div className="text-[12.5px] text-fg-primary truncate mt-0.5">
-          {commit.subject}
-        </div>
-        <div className="text-[11px] text-fg-muted truncate mt-0.5">
-          {commit.author}
-        </div>
+        <div className="text-[12.5px] text-fg-primary truncate mt-0.5">{commit.subject}</div>
+        <div className="text-[11px] text-fg-muted truncate mt-0.5">{commit.author}</div>
       </div>
     </button>
   )
@@ -81,6 +92,7 @@ export function CommitTimeline({ onArrowNav, filteredCommits }: Props) {
   const { commits, commitsLoading, commitsHasMore, selectedCommitHash, selectCommit, loadCommits, path } =
     useRepoStore()
   const openRepo = useRepoStore((s) => s.openRepo)
+  const openCommitDetail = useUIStore((s) => s.openCommitDetail)
   const scrollRef = useRef<HTMLDivElement>(null)
   const displayCommits = filteredCommits ?? commits
 
@@ -160,32 +172,36 @@ export function CommitTimeline({ onArrowNav, filteredCommits }: Props) {
   }
 
   return (
-    <div ref={scrollRef} onScroll={onScroll} className="h-full overflow-auto">
-      {filteredCommits !== undefined && filteredCommits.length === 0 ? (
-        <EmptyState
-          icon={<Search size={24} />}
-          title="No matching commits"
-          description="Try a different search query."
-        />
-      ) : (
-        <>
-          <div className="divide-y divide-border/60">
-            {displayCommits.map((c) => (
-              <CommitRow
-                key={c.hash}
-                commit={c}
-                selected={c.hash === selectedCommitHash}
-                onClick={() => selectCommit(c.hash).catch(() => {})}
-              />
-            ))}
-          </div>
-          {commitsHasMore && !filteredCommits && (
-            <div className="p-3 text-center text-[11px] text-fg-muted">
-              {commitsLoading ? 'Loading more…' : 'Scroll for more'}
+    <>
+      <div ref={scrollRef} onScroll={onScroll} className="h-full overflow-auto">
+        {filteredCommits !== undefined && filteredCommits.length === 0 ? (
+          <EmptyState
+            icon={<Search size={24} />}
+            title="No matching commits"
+            description="Try a different search query."
+          />
+        ) : (
+          <>
+            <div className="divide-y divide-border/60">
+              {displayCommits.map((c) => (
+                <CommitRow
+                  key={c.hash}
+                  commit={c}
+                  selected={c.hash === selectedCommitHash}
+                  onSelect={() => selectCommit(c.hash).catch(() => {})}
+                  onOpenDetail={() => openCommitDetail(c.hash)}
+                />
+              ))}
             </div>
-          )}
-        </>
-      )}
-    </div>
+            {commitsHasMore && !filteredCommits && (
+              <div className="p-3 text-center text-[11px] text-fg-muted">
+                {commitsLoading ? 'Loading more…' : 'Scroll for more'}
+              </div>
+            )}
+          </>
+        )}
+      </div>
+      <CommitDetailDrawer />
+    </>
   )
 }

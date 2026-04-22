@@ -19,6 +19,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.32.1",
+    "@radix-ui/react-dialog": "^1.1.15",
     "clsx": "^2.1.1",
     "electron-store": "^8.2.0",
     "keytar": "^7.9.0",

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from 'react'
+import { useEffect, useRef, useCallback, useState } from 'react'
 import { useRepoStore } from '@renderer/stores/repoStore'
 import { useAnalysisStore } from '@renderer/stores/analysisStore'
 import { useSettingsStore } from '@renderer/stores/settingsStore'
@@ -6,7 +6,7 @@ import { useUIStore } from '@renderer/stores/uiStore'
 import { cx } from '@renderer/lib/cx'
 import { Skeleton } from '@renderer/components/primitives/Skeleton'
 import { EmptyState } from '@renderer/components/primitives/EmptyState'
-import { FolderOpen, GitCommit, Search } from 'lucide-react'
+import { FolderOpen, GitCommit, Search, ChevronRight } from 'lucide-react'
 import { Button } from '@renderer/components/primitives/Button'
 import { CommitDetailDrawer } from './CommitDetailDrawer'
 import type { Commit } from '@shared/types'
@@ -62,21 +62,22 @@ function CommitRow({
   onSelect: () => void
   onOpenDetail: () => void
 }) {
+  const [isHovered, setIsHovered] = useState(false)
+
   return (
-    <button
-      onClick={() => {
-        onSelect()
-        onOpenDetail()
-      }}
+    <div
       className={cx(
-        'w-full text-left px-3 py-2 border-l-2 flex items-start gap-2.5 transition-colors',
-        selected
-          ? 'bg-accent/10 border-accent'
-          : 'border-transparent hover:bg-bg-elevated hover:border-border-strong'
+        'relative w-full px-3 py-2 border-l-2 flex items-start gap-2.5 transition-colors group',
+        selected ? 'bg-accent/10 border-accent' : 'border-transparent hover:bg-bg-elevated hover:border-border-strong'
       )}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
     >
+      {/* Main clickable area for selection */}
+      <button onClick={onSelect} className="absolute inset-0" aria-label="Select commit" />
+
       <CacheDot hash={commit.hash} />
-      <div className="min-w-0 flex-1">
+      <div className="min-w-0 flex-1 pointer-events-none">
         <div className="flex items-center gap-2">
           <code className="text-[11px] text-fg-muted font-mono">{commit.shortHash}</code>
           <span className="text-[11px] text-fg-muted">{commit.relativeDate}</span>
@@ -84,7 +85,25 @@ function CommitRow({
         <div className="text-[12.5px] text-fg-primary truncate mt-0.5">{commit.subject}</div>
         <div className="text-[11px] text-fg-muted truncate mt-0.5">{commit.author}</div>
       </div>
-    </button>
+
+      {/* Expand button - only visible on hover or when selected */}
+      <button
+        onClick={(e) => {
+          e.stopPropagation()
+          onOpenDetail()
+        }}
+        className={cx(
+          'relative z-10 flex-shrink-0 w-6 h-6 rounded flex items-center justify-center',
+          'text-fg-muted hover:text-fg-primary hover:bg-bg-tertiary',
+          'transition-all duration-200',
+          isHovered || selected ? 'opacity-100' : 'opacity-0'
+        )}
+        aria-label="View commit details"
+        title="View full commit details"
+      >
+        <ChevronRight size={14} />
+      </button>
+    </div>
   )
 }
 

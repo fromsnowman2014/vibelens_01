@@ -14,22 +14,23 @@ export function Drawer({ open, onOpenChange, title, children }: DrawerProps) {
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
-        {/* Backdrop */}
+        {/* Backdrop - lighter to keep background visible */}
         <Dialog.Overlay
           className={cx(
             'fixed inset-0 z-40',
-            'bg-[rgba(30,30,46,0.8)]',
+            'bg-[rgba(30,30,46,0.4)]', // Reduced opacity from 0.8 to 0.4
             'data-[state=open]:animate-in data-[state=closed]:animate-out',
             'data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0'
           )}
         />
 
-        {/* Drawer Content */}
+        {/* Drawer Content - centered with max-width for better readability */}
         <Dialog.Content
           className={cx(
-            'fixed bottom-0 left-0 right-0 z-50',
-            'max-h-[85vh] overflow-y-auto',
-            'bg-bg-elevated border-t border-border-strong',
+            'fixed bottom-0 left-1/2 -translate-x-1/2 z-50',
+            'w-full max-w-3xl', // Centered with max-width 768px
+            'max-h-[70vh] overflow-y-auto', // Reduced from 85vh to 70vh
+            'bg-bg-elevated border border-border-strong',
             'rounded-t-xl shadow-2xl',
             'data-[state=open]:animate-in data-[state=closed]:animate-out',
             'data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom',

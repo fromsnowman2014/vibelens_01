@@ -3,11 +3,14 @@ import { Panel } from '@renderer/components/primitives/Panel'
 import { useRepoStore } from '@renderer/stores/repoStore'
 import { useAnalysisStore } from '@renderer/stores/analysisStore'
 import { useSettingsStore } from '@renderer/stores/settingsStore'
+import { useWebAppStore } from '@renderer/stores/webappStore'
 import { Button } from '@renderer/components/primitives/Button'
 import { Badge } from '@renderer/components/primitives/Badge'
 import { Skeleton } from '@renderer/components/primitives/Skeleton'
 import { EmptyState } from '@renderer/components/primitives/EmptyState'
 import { AIChatbox } from './AIChatbox'
+import { WebAppStatus } from './WebAppStatus'
+import { WebAppLog } from './WebAppLog'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import {
@@ -23,7 +26,9 @@ import {
   Check,
   CheckCircle2,
   Settings,
-  ChevronDown
+  ChevronDown,
+  Monitor,
+  ScrollText
 } from 'lucide-react'
 import { toast } from '@renderer/components/primitives/Toast'
 import { LLM_MODELS } from '@shared/types'
@@ -33,7 +38,7 @@ interface Props {
   onOpenSettings: () => void
 }
 
-type PanelTab = 'analysis' | 'chat'
+type PanelTab = 'analysis' | 'chat' | 'status' | 'log'
 
 // ModelSelector: Custom dropdown for selecting LLM models with API key status
 function ModelSelector({
@@ -167,6 +172,15 @@ export function AIContextPanel({ onOpenSettings }: Props) {
   const activeProvider = useSettingsStore((s) => s.settings?.activeProvider ?? 'claude')
   const activeModel = useSettingsStore((s) => s.settings?.activeModel ?? 'claude-sonnet-4-5')
   const { cache, status, errors, analyzeSelected } = useAnalysisStore()
+  const { shouldAutoSwitchToLog, resetAutoSwitchFlags } = useWebAppStore()
+
+  // Auto-switch to log tab when webapp starts
+  useEffect(() => {
+    if (shouldAutoSwitchToLog) {
+      setTab('log')
+      resetAutoSwitchFlags()
+    }
+  }, [shouldAutoSwitchToLog, resetAutoSwitchFlags])
 
   const commit = commits.find((c) => c.hash === selectedHash)
   const key = selectedHash ? `${selectedHash}:${language}` : ''
@@ -215,6 +229,26 @@ export function AIContextPanel({ onOpenSettings }: Props) {
         >
           <MessageSquare size={10} />
           Chat
+        </button>
+        <button
+          onClick={() => setTab('status')}
+          className={`px-2 py-0.5 rounded text-[11px] font-medium transition-colors flex items-center gap-1 ${tab === 'status'
+              ? 'bg-bg-primary text-fg-primary shadow-sm'
+              : 'text-fg-muted hover:text-fg-secondary'
+            }`}
+        >
+          <Monitor size={10} />
+          Status
+        </button>
+        <button
+          onClick={() => setTab('log')}
+          className={`px-2 py-0.5 rounded text-[11px] font-medium transition-colors flex items-center gap-1 ${tab === 'log'
+              ? 'bg-bg-primary text-fg-primary shadow-sm'
+              : 'text-fg-muted hover:text-fg-secondary'
+            }`}
+        >
+          <ScrollText size={10} />
+          Log
         </button>
       </div>
       {tab === 'analysis' && result?.unparsed && (
@@ -286,6 +320,24 @@ export function AIContextPanel({ onOpenSettings }: Props) {
       </Button>
     </>
   )
+
+  // Status tab body
+  if (tab === 'status') {
+    return (
+      <Panel title={header} rightSlot={actions} bodyClassName="p-0">
+        <WebAppStatus />
+      </Panel>
+    )
+  }
+
+  // Log tab body
+  if (tab === 'log') {
+    return (
+      <Panel title={header} rightSlot={actions} bodyClassName="p-0">
+        <WebAppLog />
+      </Panel>
+    )
+  }
 
   // Chat tab body
   if (tab === 'chat') {

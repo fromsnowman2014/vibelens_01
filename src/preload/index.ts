@@ -6,7 +6,9 @@ import type {
   DiffResult,
   Language,
   ProviderId,
-  Settings
+  Settings,
+  ProjectConfig,
+  WebAppSession
 } from '@shared/types'
 
 type Result<T> = { ok: true; data: T } | { ok: false; error: string }
@@ -91,6 +93,55 @@ const api = {
         'chat:send',
         { messages, context }
       )
+  },
+  webapp: {
+    detect: (repoPath: string, commitHash: string) =>
+      invoke<ProjectConfig>('webapp:detect', { repoPath, commitHash }),
+    start: (repoPath: string, commitHash: string) =>
+      invoke<WebAppSession>('webapp:start', { repoPath, commitHash }),
+    stop: (sessionId: string) =>
+      invoke<void>('webapp:stop', { sessionId }),
+    getStatus: (sessionId: string) =>
+      invoke<WebAppSession | null>('webapp:getStatus', { sessionId }),
+    subscribeLogs: (
+      sessionId: string,
+      onLog: (log: any) => void,
+      onWarning: (warning: any) => void,
+      onStatusChange?: (status: string) => void
+    ) => {
+      // Subscribe to log events
+      ipcRenderer.send('webapp:subscribeLogs', { sessionId })
+
+      // Listen for logs
+      const logListener = (_e: IpcRendererEvent, data: { sessionId: string; log: any }) => {
+        if (data.sessionId === sessionId) {
+          onLog(data.log)
+        }
+      }
+
+      const warningListener = (_e: IpcRendererEvent, data: { sessionId: string; warning: any }) => {
+        if (data.sessionId === sessionId) {
+          onWarning(data.warning)
+        }
+      }
+
+      const statusChangeListener = (_e: IpcRendererEvent, data: { sessionId: string; status: string }) => {
+        if (data.sessionId === sessionId && onStatusChange) {
+          onStatusChange(data.status)
+        }
+      }
+
+      ipcRenderer.on('webapp:log', logListener)
+      ipcRenderer.on('webapp:warning', warningListener)
+      ipcRenderer.on('webapp:status-change', statusChangeListener)
+
+      // Return cleanup function
+      return () => {
+        ipcRenderer.removeListener('webapp:log', logListener)
+        ipcRenderer.removeListener('webapp:warning', warningListener)
+        ipcRenderer.removeListener('webapp:status-change', statusChangeListener)
+      }
+    }
   },
   on: (channel: string, cb: (...args: unknown[]) => void) => {
     const listener = (_e: IpcRendererEvent, ...args: unknown[]) => cb(...args)

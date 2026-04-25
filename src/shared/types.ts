@@ -180,3 +180,58 @@ export const LLM_MODELS: Record<ProviderId, ModelDef[]> = {
     { id: 'gpt-4o', name: 'GPT-4o', default: true }
   ]
 }
+
+// ===================================================================
+// WebApp Emulator Types (Phase 5)
+// ===================================================================
+
+export type WebAppStatus = 'idle' | 'detecting' | 'building' | 'running' | 'error'
+
+export type ProjectType =
+  | 'react-vite'
+  | 'react-cra'
+  | 'nextjs'
+  | 'vue'
+  | 'static-html'
+  | 'unknown'
+
+export interface ProjectConfig {
+  type: ProjectType
+  devCommand: string | null // "npm run dev", "npm start" 등
+  buildCommand: string | null
+  devPort: number | null
+  hasEnvTemplate: boolean // .env.example 존재 여부
+  requiredEnvVars: string[] // API_KEY 등
+}
+
+export interface WebAppSession {
+  sessionId: string
+  commitHash: string
+  repoPath: string
+  port: number
+  status: WebAppStatus
+  startedAt: number
+  pid?: number
+}
+
+export interface BuildLog {
+  id: string
+  timestamp: number
+  level: 'info' | 'warn' | 'error'
+  message: string
+  source: 'build' | 'runtime'
+}
+
+export interface ConsoleLog {
+  id: string
+  timestamp: number
+  level: 'log' | 'warn' | 'error'
+  args: string[]
+  source: string // file:line
+}
+
+export interface WebAppWarning {
+  type: 'missing-env' | 'port-conflict' | 'missing-dependency' | 'api-error'
+  message: string
+  severity: 'warning' | 'error'
+}

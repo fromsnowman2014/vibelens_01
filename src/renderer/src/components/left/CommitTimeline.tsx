@@ -3,10 +3,11 @@ import { useRepoStore } from '@renderer/stores/repoStore'
 import { useAnalysisStore } from '@renderer/stores/analysisStore'
 import { useSettingsStore } from '@renderer/stores/settingsStore'
 import { useUIStore } from '@renderer/stores/uiStore'
+import { useWebAppStore } from '@renderer/stores/webappStore'
 import { cx } from '@renderer/lib/cx'
 import { Skeleton } from '@renderer/components/primitives/Skeleton'
 import { EmptyState } from '@renderer/components/primitives/EmptyState'
-import { FolderOpen, GitCommit, Search, ChevronRight } from 'lucide-react'
+import { FolderOpen, GitCommit, Search, ChevronRight, Play, Square } from 'lucide-react'
 import { Button } from '@renderer/components/primitives/Button'
 import { CommitDetailDrawer } from './CommitDetailDrawer'
 import type { Commit } from '@shared/types'
@@ -63,6 +64,36 @@ function CommitRow({
   onOpenDetail: () => void
 }) {
   const [isHovered, setIsHovered] = useState(false)
+  const { session, startWebApp, stopWebApp, detectProject, projectConfig } = useWebAppStore()
+  const [isDetecting, setIsDetecting] = useState(false)
+  const [hasChecked, setHasChecked] = useState(false)
+
+  const isRunning = session?.commitHash === commit.hash
+
+  // If running, we know it can run. Otherwise check on hover for performance
+  const canRun = isRunning || (projectConfig && projectConfig.type !== 'unknown')
+
+  // Only detect on hover (lazy loading) unless already running
+  const handleMouseEnter = () => {
+    setIsHovered(true)
+    if (!hasChecked && !isRunning && !isDetecting) {
+      setHasChecked(true)
+      setIsDetecting(true)
+      detectProject(commit.hash)
+        .finally(() => {
+          setIsDetecting(false)
+        })
+    }
+  }
+
+  const handlePlayStop = async (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (isRunning) {
+      await stopWebApp()
+    } else {
+      await startWebApp(commit.hash)
+    }
+  }
 
   return (
     <div
@@ -70,7 +101,7 @@ function CommitRow({
         'relative w-full px-3 py-2 border-l-2 flex items-start gap-2.5 transition-colors group',
         selected ? 'bg-accent/10 border-accent' : 'border-transparent hover:bg-bg-elevated hover:border-border-strong'
       )}
-      onMouseEnter={() => setIsHovered(true)}
+      onMouseEnter={handleMouseEnter}
       onMouseLeave={() => setIsHovered(false)}
     >
       {/* Main clickable area for selection */}
@@ -85,6 +116,26 @@ function CommitRow({
         <div className="text-[12.5px] text-fg-primary truncate mt-0.5">{commit.subject}</div>
         <div className="text-[11px] text-fg-muted truncate mt-0.5">{commit.author}</div>
       </div>
+
+      {/* Play/Stop button - visible on hover if webapp is detected, or always if running */}
+      {canRun && (
+        <button
+          onClick={handlePlayStop}
+          disabled={isDetecting}
+          className={cx(
+            'relative z-10 flex-shrink-0 w-6 h-6 rounded flex items-center justify-center',
+            'text-fg-muted hover:text-fg-primary hover:bg-bg-tertiary',
+            'transition-all duration-200',
+            'disabled:opacity-50 disabled:cursor-not-allowed',
+            isHovered || selected || isRunning ? 'opacity-100' : 'opacity-0',
+            isRunning && 'text-state-success'
+          )}
+          aria-label={isRunning ? 'Stop webapp' : 'Run webapp'}
+          title={isRunning ? 'Stop webapp' : 'Run webapp at this commit'}
+        >
+          {isRunning ? <Square size={12} /> : <Play size={12} />}
+        </button>
+      )}
 
       {/* Expand button - only visible on hover or when selected */}
       <button

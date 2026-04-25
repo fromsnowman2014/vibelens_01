@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, shell, nativeTheme, ipcMain } from 'electron'
+import { app, BrowserWindow, Menu, shell, nativeTheme, ipcMain, session } from 'electron'
 import { join } from 'path'
 import { registerIpc } from './ipc/registerIpc'
 import { buildAppMenu } from './menu'
@@ -24,7 +24,8 @@ function createWindow(): BrowserWindow {
       sandbox: false,
       contextIsolation: true,
       nodeIntegration: false,
-      webSecurity: true
+      webSecurity: false,  // Disable web security to allow localhost loading
+      webviewTag: true  // Enable <webview> tag support
     }
   })
 
@@ -77,6 +78,26 @@ export function rebuildMenu(): void {
 
 app.whenReady().then(async () => {
   nativeTheme.themeSource = 'dark'
+
+  // Configure webview session to allow localhost connections
+  const webappSession = session.fromPartition('persist:webapp')
+
+  // Disable CORS for localhost to allow webview to load dev servers
+  webappSession.webRequest.onBeforeSendHeaders((details, callback) => {
+    callback({ requestHeaders: { ...details.requestHeaders } })
+  })
+
+  webappSession.webRequest.onHeadersReceived((details, callback) => {
+    const headers = details.responseHeaders || {}
+    callback({
+      responseHeaders: {
+        ...headers,
+        'Access-Control-Allow-Origin': ['*'],
+        'Access-Control-Allow-Methods': ['*'],
+        'Access-Control-Allow-Headers': ['*']
+      }
+    })
+  })
 
   registerIpc()
 

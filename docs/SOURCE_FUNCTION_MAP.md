@@ -2,7 +2,7 @@
 
 > **목적**: 문제 분석, 개선, 기능 추가 시 전체 소스 구조를 매번 검색하지 않고, 이 맵 파일을 통해 해당 파일 및 함수에 직접 접근하여 토큰을 효율적으로 사용하고 vibe coding을 가능하게 합니다.
 
-**Last Updated**: 2026-04-22 (Phase 4 - Commit Detail Drawer, Resizable Panels)
+**Last Updated**: 2026-04-23 (Phase 5 - WebApp Emulator)
 
 ---
 
@@ -36,6 +36,11 @@ vibelens_01/
 - `RecentRepo` - 최근 저장소 정보 (path, name, lastOpened?, branch?) **[Phase 1 추가]**
 - `Settings` - 앱 설정 (language, theme, API key 유무, recentRepos 등)
 - `IpcResult<T>` - IPC 통신 결과 래퍼 타입
+- **[Phase 5 추가]** `WebAppStatus` - WebApp 상태 ('idle' | 'detecting' | 'building' | 'running' | 'error')
+- **[Phase 5 추가]** `ProjectType` - 프로젝트 타입 (react-vite, nextjs, vue 등)
+- **[Phase 5 추가]** `ProjectConfig` - 프로젝트 설정 (타입, dev 명령어, 포트 등)
+- **[Phase 5 추가]** `WebAppSession` - WebApp 세션 정보
+- **[Phase 5 추가]** `BuildLog` / `ConsoleLog` / `WebAppWarning` - 로그 및 경고 타입
 
 #### 상수
 - `DEFAULT_CLAUDE_MODEL` = `'claude-sonnet-4-5'`
@@ -102,6 +107,13 @@ vibelens_01/
 - `analysis:getCached` - 디스크 캐시에서 분석 결과 조회
 - `analysis:analyze` - Claude API 호출하여 커밋 분석 (force 옵션)
 - `analysis:cancel` - 진행 중인 분석 취소
+
+**WebApp** **[Phase 5 추가]**:
+- `webapp:detect` - 프로젝트 타입 감지 (package.json 분석)
+- `webapp:start` - WebApp 세션 시작 (빌드 & 실행)
+- `webapp:stop` - WebApp 세션 종료 (프로세스 kill & cleanup)
+- `webapp:getStatus` - WebApp 세션 상태 조회
+- `webapp:subscribeLogs` - 빌드 로그 스트리밍 구독 (이벤트 기반)
 
 **App**:
 - `app:openExternal` - 외부 브라우저에서 URL 열기
@@ -258,6 +270,58 @@ vibelens_01/
 
 ---
 
+##### WebApp Services (`src/main/services/webapp/`) **[Phase 5 추가]**
+
+###### WebApp Service (`webappService.ts`)
+
+**핵심 함수**:
+- `detectProject(repoPath, commitHash)` - 프로젝트 타입 감지
+- `startWebApp(repoPath, commitHash)` - 웹앱 세션 시작
+- `stopWebApp(sessionId)` - 세션 종료
+- `getStatus(sessionId)` - 세션 상태 조회
+
+###### Project Detector (`projectDetector.ts`)
+
+**핵심 함수**:
+- `detectProjectType(repoPath, commitHash)` - package.json 분석하여 프로젝트 타입 감지
+  - React Vite, Next.js, CRA, Vue, Static HTML, Unknown 구분
+  - .env.example 파싱하여 필수 환경변수 목록 추출
+
+**감지 로직**:
+- Next.js: `dependencies.next` 존재
+- React Vite: `devDependencies.vite` 존재
+- CRA: `dependencies.react-scripts` 존재
+- Vue: `dependencies.vue` 존재
+- Static HTML: package.json 없고 index.html 존재
+
+###### Build Manager (`buildManager.ts`)
+
+**핵심 함수**:
+- `buildAndRun(repoPath, commitHash, config)` - 빌드 및 실행
+  - Git worktree로 temp 디렉토리에 커밋 체크아웃
+  - npm install 실행
+  - dev server 시작 (subprocess)
+- `stopSession(sessionId)` - 세션 정리
+  - 프로세스 kill (SIGTERM)
+  - Git worktree 제거
+  - Temp 디렉토리 삭제
+- `getSessionEmitter(sessionId)` - 로그 스트리밍용 EventEmitter 반환
+- `getSession(sessionId)` - 세션 상태 반환
+- `cleanupAllSessions()` - 앱 종료 시 모든 세션 정리
+
+**상수**:
+- Sessions Map: `Map<sessionId, BuildSession>`
+- BuildSession: `{ session, process, emitter, tempDir }`
+
+###### Port Allocator (`portAllocator.ts`)
+
+**핵심 함수**:
+- `findFreePort(preferredPort)` - 사용 가능한 포트 찾기
+  - preferredPort부터 순차적으로 탐색 (65535까지)
+- `isPortFree(port)` - 포트 사용 가능 여부 확인
+
+---
+
 #### 2.5 Utils
 
 ##### Logger (`src/main/utils/logger.ts`)
@@ -287,6 +351,12 @@ vibelens_01/
 - `window.vibelens.settings.*`
 - `window.vibelens.keychain.*`
 - `window.vibelens.app.*`
+- **[Phase 5 추가]** `window.vibelens.webapp.*`
+  - `detect(repoPath, commitHash)` - 프로젝트 타입 감지
+  - `start(repoPath, commitHash)` - WebApp 시작
+  - `stop(sessionId)` - WebApp 중지
+  - `getStatus(sessionId)` - 상태 조회
+  - `subscribeLogs(sessionId, onLog, onWarning)` - 로그 스트리밍
 - `window.vibelens.on(channel, callback)` - 이벤트 리스너
 
 ---
@@ -722,13 +792,40 @@ vibelens_01/
 
 ---
 
-**마지막 업데이트**: 2026-04-22 (Phase 4 - Commit Detail Drawer, Resizable Panels)
+**마지막 업데이트**: 2026-04-23 (Phase 5 - WebApp Emulator)
 
 이 문서는 VibeLens 프로젝트의 모든 주요 함수와 파일 위치를 정리하여, 개발자가 빠르게 코드베이스를 탐색하고 수정할 수 있도록 돕습니다.
 
 ---
 
 ## 📝 변경 이력
+
+### Phase 5 (2026-04-23) - WebApp Emulator
+
+**새로 추가된 서비스 (Main Process)**:
+- `src/main/services/webapp/webappService.ts` - WebApp 서비스 메인 인터페이스
+- `src/main/services/webapp/projectDetector.ts` - 프로젝트 타입 자동 감지
+- `src/main/services/webapp/buildManager.ts` - 빌드 프로세스 관리
+- `src/main/services/webapp/portAllocator.ts` - 포트 자동 할당
+
+**새로 추가된 타입**:
+- `WebAppStatus`, `ProjectType`, `ProjectConfig` - WebApp 관련 타입
+- `WebAppSession`, `BuildLog`, `ConsoleLog`, `WebAppWarning` - 세션 및 로그 타입
+
+**IPC 핸들러 추가**:
+- `webapp:detect`, `webapp:start`, `webapp:stop`, `webapp:getStatus` - WebApp 제어
+- `webapp:subscribeLogs` - 실시간 로그 스트리밍
+
+**핵심 기능**:
+- Git worktree를 사용한 격리된 빌드 환경
+- npm install 및 dev server 자동 실행
+- 실시간 빌드 로그 스트리밍 (EventEmitter 기반)
+- 환경변수 누락 감지 (.env.example 파싱)
+- 포트 자동 할당 (충돌 방지)
+
+**의존성 추가**:
+- `uuid` - 세션 ID 생성
+- `@types/uuid` - TypeScript 타입
 
 ### Phase 4 (2026-04-22) - Commit Detail Drawer & Resizable Panels
 

@@ -207,6 +207,8 @@ SOURCE_FUNCTION_MAP.md 읽기: 800 토큰
 | 상태 관리 | `src/renderer/src/stores/*.ts` | Zustand stores |
 | UI 컴포넌트 | `src/renderer/src/components/**/*.tsx` | React components |
 | 타입 정의 | `src/shared/types.ts` | 공유 타입 |
+| WebApp 빌드 | `src/main/services/webapp/buildManager.ts` | `buildAndRun()`, `stopSession()` |
+| WebApp 감지 | `src/main/services/webapp/projectDetector.ts` | `detectProjectType()` |
 
 ---
 

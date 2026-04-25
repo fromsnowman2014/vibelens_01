@@ -36,6 +36,8 @@ import { claudeProvider } from '../services/llm/ClaudeProvider'
 import type { LLMProvider } from '../services/llm/LLMProvider'
 import { logger } from '../utils/logger'
 import type { AnalysisResult, Language, ProviderId } from '@shared/types'
+import * as webappService from '../services/webapp/webappService'
+import * as buildManager from '../services/webapp/buildManager'
 
 const activeAnalyses = new Map<string, AbortController>()
 
@@ -368,6 +370,59 @@ export function registerIpc(): void {
   // Rebuild menu whenever a repo is opened/closed (to refresh Open Recent)
   ipcMain.on('menu:rebuildNeeded', () => {
     rebuildMenu()
+  })
+
+  // -------- webapp --------
+  ipcMain.handle(
+    'webapp:detect',
+    async (_e, { repoPath, commitHash }: { repoPath: string; commitHash: string }) =>
+      wrap(async () => webappService.detectProject(repoPath, commitHash))
+  )
+
+  ipcMain.handle(
+    'webapp:start',
+    async (_e, { repoPath, commitHash }: { repoPath: string; commitHash: string }) =>
+      wrap(async () => webappService.startWebApp(repoPath, commitHash))
+  )
+
+  ipcMain.handle('webapp:stop', async (_e, { sessionId }: { sessionId: string }) =>
+    wrap(async () => webappService.stopWebApp(sessionId))
+  )
+
+  ipcMain.handle('webapp:getStatus', async (_e, { sessionId }: { sessionId: string }) =>
+    wrap(async () => webappService.getStatus(sessionId))
+  )
+
+  // Webapp log streaming (event-based)
+  ipcMain.on('webapp:subscribeLogs', (event, { sessionId }: { sessionId: string }) => {
+    const emitter = buildManager.getSessionEmitter(sessionId)
+    if (!emitter) {
+      logger.warn(`No emitter found for session ${sessionId}`)
+      return
+    }
+
+    const logHandler = (log: any) => {
+      event.sender.send('webapp:log', { sessionId, log })
+    }
+
+    const warningHandler = (warning: any) => {
+      event.sender.send('webapp:warning', { sessionId, warning })
+    }
+
+    const statusChangeHandler = (data: any) => {
+      event.sender.send('webapp:status-change', { sessionId, status: data.status })
+    }
+
+    emitter.on('log', logHandler)
+    emitter.on('warning', warningHandler)
+    emitter.on('status-change', statusChangeHandler)
+
+    // Cleanup on disconnect
+    event.sender.once('destroyed', () => {
+      emitter.off('log', logHandler)
+      emitter.off('warning', warningHandler)
+      emitter.off('status-change', statusChangeHandler)
+    })
   })
 
   logger.info('IPC handlers registered')

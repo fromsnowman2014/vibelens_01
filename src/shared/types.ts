@@ -202,6 +202,7 @@ export interface ProjectConfig {
   devPort: number | null
   hasEnvTemplate: boolean // .env.example 존재 여부
   requiredEnvVars: string[] // API_KEY 등
+  workingDir: string // package.json/index.html이 위치한 상대 경로 ('' = repo root, 'frontend' 등)
 }
 
 export interface WebAppSession {

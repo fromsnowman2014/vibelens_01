@@ -21,7 +21,11 @@ interface ConsoleLog {
 
 interface WebAppState {
   session: WebAppSession | null
-  projectConfig: ProjectConfig | null
+  /** Per-commit cache of detected project config. Replaces the old single-slot field
+   *  that caused every commit row to share the same detect result. */
+  projectConfigByHash: Record<string, ProjectConfig>
+  /** Hashes currently being detected (in-flight), to dedupe concurrent calls. */
+  detectingHashes: Set<string>
   buildLogs: BuildLog[]
   consoleLogs: ConsoleLog[]
   warnings: WebAppWarning[]
@@ -48,7 +52,8 @@ let logCleanupFn: (() => void) | null = null
 
 export const useWebAppStore = create<WebAppState>((set, get) => ({
   session: null,
-  projectConfig: null,
+  projectConfigByHash: {},
+  detectingHashes: new Set<string>(),
   buildLogs: [],
   consoleLogs: [],
   warnings: [],
@@ -58,15 +63,44 @@ export const useWebAppStore = create<WebAppState>((set, get) => ({
   detectProject: async (commitHash: string) => {
     const repo = useRepoStore.getState()
     const { path } = repo
-    if (!path) return null
+    if (!path) {
+      console.warn('[webappStore] detectProject called with no repo path')
+      return null
+    }
+
+    const shortHash = commitHash.slice(0, 7)
+    const cached = get().projectConfigByHash[commitHash]
+    if (cached) {
+      console.log(`[webappStore] detectProject cache hit commit=${shortHash} type=${cached.type}`)
+      return cached
+    }
+
+    if (get().detectingHashes.has(commitHash)) {
+      console.log(`[webappStore] detectProject already in-flight commit=${shortHash}`)
+      return null
+    }
+
+    const inflight = new Set(get().detectingHashes)
+    inflight.add(commitHash)
+    set({ detectingHashes: inflight })
 
     try {
+      console.log(`[webappStore] detectProject start commit=${shortHash}`)
       const config = await unwrap(api.webapp.detect(path, commitHash))
-      set({ projectConfig: config })
+      console.log(
+        `[webappStore] detectProject done commit=${shortHash} type=${config.type} workingDir="${config.workingDir}"`
+      )
+      set((s) => ({
+        projectConfigByHash: { ...s.projectConfigByHash, [commitHash]: config }
+      }))
       return config
     } catch (e) {
-      console.error('Project detection failed:', e)
+      console.error(`[webappStore] detectProject failed commit=${shortHash}`, e)
       return null
+    } finally {
+      const next = new Set(get().detectingHashes)
+      next.delete(commitHash)
+      set({ detectingHashes: next })
     }
   },
 
@@ -92,7 +126,11 @@ export const useWebAppStore = create<WebAppState>((set, get) => ({
 
     try {
       // Start session
+      console.log(`[webappStore] startWebApp commit=${commitHash.slice(0, 7)}`)
       const session = await unwrap(api.webapp.start(path, commitHash))
+      console.log(
+        `[webappStore] startWebApp session created sessionId=${session.sessionId.slice(0, 8)} port=${session.port}`
+      )
       set({ session })
 
       // Subscribe to logs
@@ -223,7 +261,8 @@ export const useWebAppStore = create<WebAppState>((set, get) => ({
 
     set({
       session: null,
-      projectConfig: null,
+      projectConfigByHash: {},
+      detectingHashes: new Set<string>(),
       buildLogs: [],
       consoleLogs: [],
       warnings: [],

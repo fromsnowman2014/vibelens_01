@@ -5,7 +5,12 @@ import { Monitor, AlertTriangle, CheckCircle, Loader2 } from 'lucide-react'
 import { Badge } from '@renderer/components/primitives/Badge'
 
 export function WebAppStatus() {
-  const { session, projectConfig, warnings, stopWebApp } = useWebAppStore()
+  const session = useWebAppStore((s) => s.session)
+  const warnings = useWebAppStore((s) => s.warnings)
+  const stopWebApp = useWebAppStore((s) => s.stopWebApp)
+  const projectConfig = useWebAppStore((s) =>
+    session ? s.projectConfigByHash[session.commitHash] ?? null : null
+  )
 
   if (!session) {
     return (

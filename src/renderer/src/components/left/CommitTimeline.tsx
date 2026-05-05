@@ -64,14 +64,26 @@ function CommitRow({
   onOpenDetail: () => void
 }) {
   const [isHovered, setIsHovered] = useState(false)
-  const { session, startWebApp, stopWebApp, detectProject, projectConfig } = useWebAppStore()
+  const session = useWebAppStore((s) => s.session)
+  const startWebApp = useWebAppStore((s) => s.startWebApp)
+  const stopWebApp = useWebAppStore((s) => s.stopWebApp)
+  const detectProject = useWebAppStore((s) => s.detectProject)
+  // Subscribe only to this commit's config so the row re-renders when its own
+  // detect resolves (and not when other commits' configs land).
+  const config = useWebAppStore((s) => s.projectConfigByHash[commit.hash])
   const [isDetecting, setIsDetecting] = useState(false)
   const [hasChecked, setHasChecked] = useState(false)
 
   const isRunning = session?.commitHash === commit.hash
 
-  // If running, we know it can run. Otherwise check on hover for performance
-  const canRun = isRunning || (projectConfig && projectConfig.type !== 'unknown')
+  // If running, we know it can run. Otherwise rely on this commit's own detect result.
+  const canRun = isRunning || (config !== undefined && config.type !== 'unknown')
+
+  if (config !== undefined) {
+    console.debug(
+      `[CommitRow] hash=${commit.shortHash} type=${config.type} workingDir="${config.workingDir}" canRun=${!!canRun} isRunning=${isRunning}`
+    )
+  }
 
   // Only detect on hover (lazy loading) unless already running
   const handleMouseEnter = () => {
@@ -79,10 +91,10 @@ function CommitRow({
     if (!hasChecked && !isRunning && !isDetecting) {
       setHasChecked(true)
       setIsDetecting(true)
-      detectProject(commit.hash)
-        .finally(() => {
-          setIsDetecting(false)
-        })
+      console.debug(`[CommitRow] detect trigger hash=${commit.shortHash}`)
+      detectProject(commit.hash).finally(() => {
+        setIsDetecting(false)
+      })
     }
   }
 

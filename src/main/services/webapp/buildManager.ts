@@ -63,8 +63,14 @@ export async function buildAndRun(
     tempDir
   })
 
-  // 4. Start build process (async)
-  startBuildProcess(sessionId, tempDir, config, port, emitter).catch((error) => {
+  // 4. Resolve working directory (handles monorepos where package.json lives in a subdir)
+  const workDir = config.workingDir ? path.join(tempDir, config.workingDir) : tempDir
+  console.log(
+    `[buildManager] session=${sessionId.slice(0, 8)} commit=${commitHash.slice(0, 7)} type=${config.type} workingDir="${config.workingDir}" cwd=${workDir} port=${port}`
+  )
+
+  // 5. Start build process (async)
+  startBuildProcess(sessionId, workDir, config, port, emitter).catch((error) => {
     const sessionData = sessions.get(sessionId)
     if (sessionData) {
       sessionData.session.status = 'error'
@@ -84,7 +90,7 @@ export async function buildAndRun(
  */
 async function startBuildProcess(
   sessionId: string,
-  tempDir: string,
+  workDir: string,
   config: ProjectConfig,
   port: number,
   emitter: EventEmitter
@@ -96,10 +102,10 @@ async function startBuildProcess(
     // 1. npm install
     emitter.emit('log', {
       level: 'info',
-      message: 'Installing dependencies...',
+      message: `Installing dependencies in ${workDir}...`,
       source: 'build'
     })
-    await runCommand('npm', ['install'], tempDir, emitter)
+    await runCommand('npm', ['install'], workDir, emitter)
 
     // 2. Check environment variables
     if (config.hasEnvTemplate && config.requiredEnvVars.length > 0) {
@@ -131,7 +137,7 @@ async function startBuildProcess(
 
     const [cmd, ...args] = devCommand.split(' ')
     const proc = spawn(cmd, args, {
-      cwd: tempDir,
+      cwd: workDir,
       env: {
         ...process.env,
         NODE_ENV: 'development',
@@ -149,6 +155,20 @@ async function startBuildProcess(
     // Wait for server to be ready before emitting 'running' status
     // This prevents webview from connecting too early
     let serverReady = false
+    let portConflictReported = false
+
+    const checkPortConflict = (output: string) => {
+      if (portConflictReported) return
+      // Next.js / Node prints "EADDRINUSE" or "address already in use".
+      if (/EADDRINUSE|address already in use/i.test(output)) {
+        portConflictReported = true
+        emitter.emit('warning', {
+          type: 'port-conflict',
+          message: `Port ${port} is already in use. Another dev server (or a stale vibelens session) is holding it. Run \`lsof -nP -iTCP:${port} -sTCP:LISTEN\` to find the process, then kill it and try again.`,
+          severity: 'error'
+        })
+      }
+    }
 
     proc.stdout?.on('data', (data) => {
       const output = data.toString()
@@ -159,6 +179,8 @@ async function startBuildProcess(
         message: output,
         source: 'build'
       })
+
+      checkPortConflict(output)
 
       // Detect when dev server is ready by scanning stdout for common patterns
       if (!serverReady) {
@@ -186,11 +208,13 @@ async function startBuildProcess(
     })
 
     proc.stderr?.on('data', (data) => {
+      const output = data.toString()
       emitter.emit('log', {
         level: 'error',
-        message: data.toString(),
+        message: output,
         source: 'build'
       })
+      checkPortConflict(output)
     })
 
     proc.on('exit', (code) => {

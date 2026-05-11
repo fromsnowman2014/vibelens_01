@@ -94,6 +94,22 @@ const api = {
         { messages, context }
       )
   },
+  runtimeConsent: {
+    /** Subscribe to consent prompts pushed from the main process. Returns
+     *  an unsubscribe function. Renderer must call api.runtimeConsent.respond
+     *  with the same `id` to unblock the requesting download. */
+    onRequest: (cb: (req: { id: string; kind: string; version: string; approxSizeMB?: number }) => void) => {
+      const listener = (_e: IpcRendererEvent, payload: { id: string; kind: string; version: string; approxSizeMB?: number }) =>
+        cb(payload)
+      ipcRenderer.on('runtimeConsent:request', listener)
+      return () => {
+        ipcRenderer.removeListener('runtimeConsent:request', listener)
+      }
+    },
+    respond: (id: string, granted: boolean, remember: boolean) => {
+      ipcRenderer.send('runtimeConsent:respond', { id, granted, remember })
+    }
+  },
   webapp: {
     detect: (repoPath: string, commitHash: string) =>
       invoke<ProjectConfig>('webapp:detect', { repoPath, commitHash }),

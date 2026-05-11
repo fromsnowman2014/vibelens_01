@@ -10,6 +10,7 @@ import { SettingsModal } from './components/modals/SettingsModal'
 import { FirstRunConsentDialog } from './components/modals/FirstRunConsentDialog'
 import { GitignoreConsentDialog } from './components/modals/GitignoreConsentDialog'
 import { CloneRepoDialog } from './components/modals/CloneRepoDialog'
+import { RuntimeConsentDialog } from './components/modals/RuntimeConsentDialog'
 import { ToastHost, toast, useGlobalErrorToaster } from './components/primitives/Toast'
 import { useSettingsStore } from './stores/settingsStore'
 import { useRepoStore } from './stores/repoStore'
@@ -224,6 +225,8 @@ export function App() {
           }
         }}
       />
+
+      <RuntimeConsentDialog />
 
       <ToastHost />
     </div>

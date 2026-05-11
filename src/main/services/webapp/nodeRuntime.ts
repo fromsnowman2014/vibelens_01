@@ -24,6 +24,7 @@ import { app } from 'electron'
 import { pipeline } from 'stream/promises'
 import { createHash } from 'crypto'
 import { spawn } from 'child_process'
+import { requestConsent } from './runtimeConsent'
 
 const LOG = '[nodeRuntime]'
 
@@ -86,26 +87,126 @@ async function exists(p: string): Promise<boolean> {
 }
 
 /**
- * Normalize a raw version string from .nvmrc / engines.node / .tool-versions
- * into a clean semver, or null if we can't accept it.
- *
- *   "v20.10.0"  -> "20.10.0"
- *   "20.10.0"   -> "20.10.0"
- *   "20"        -> "20.0.0"  (resolved to a known LTS at request time)
- *   "lts/iron"  -> null (alias, P2)
- *   ">=18"      -> null (range, P2)
+ * Try to interpret a raw version string as an exact semver. Returns the
+ * canonical "X.Y.Z" form, or null if the input is anything else (alias,
+ * range, major-only). Aliases and major-only are handled by `resolveAlias`
+ * against the nodejs.org index.
  */
-function normalizeVersion(raw: string): string | null {
+function exactSemver(raw: string): string | null {
   const trimmed = raw.trim().replace(/^v/i, '')
-  if (!trimmed) return null
-  // Reject obvious aliases/ranges/etc.
-  if (/[<>=^~ ]|lts|latest|node|\*/i.test(trimmed)) return null
-  // Major-only ("20") becomes 20.0.0; we'll let the HTTP download fail with a
-  // clear error if that exact version doesn't exist (rare).
-  const parts = trimmed.split('.')
-  if (parts.length === 1 && /^\d+$/.test(parts[0])) return `${parts[0]}.0.0`
-  if (parts.length === 2 && parts.every((p) => /^\d+$/.test(p))) return `${parts[0]}.${parts[1]}.0`
-  if (parts.length === 3 && parts.every((p) => /^\d+$/.test(p))) return trimmed
+  if (!/^\d+\.\d+\.\d+$/.test(trimmed)) return null
+  return trimmed
+}
+
+interface DistRelease {
+  version: string // "v22.11.0"
+  date: string
+  files: string[]
+  lts: false | string // false or LTS codename, e.g. "Jod"
+}
+
+/** Disk + memory cache of nodejs.org/dist/index.json. */
+const DIST_INDEX_TTL_MS = 24 * 60 * 60 * 1000 // 24h
+let distIndexMemo: { fetchedAt: number; releases: DistRelease[] } | null = null
+
+function distIndexCachePath(): string {
+  return path.join(toolsRoot(), 'index.json')
+}
+
+async function loadDistIndex(): Promise<DistRelease[]> {
+  const now = Date.now()
+  if (distIndexMemo && now - distIndexMemo.fetchedAt < DIST_INDEX_TTL_MS) {
+    return distIndexMemo.releases
+  }
+  const cachePath = distIndexCachePath()
+  try {
+    const stat = await fs.stat(cachePath)
+    if (now - stat.mtimeMs < DIST_INDEX_TTL_MS) {
+      const txt = await fs.readFile(cachePath, 'utf8')
+      const releases = JSON.parse(txt) as DistRelease[]
+      distIndexMemo = { fetchedAt: stat.mtimeMs, releases }
+      return releases
+    }
+  } catch {
+    /* no usable on-disk cache */
+  }
+
+  console.log(`${LOG} fetching nodejs.org/dist/index.json`)
+  const text = await fetchText('https://nodejs.org/dist/index.json')
+  const releases = JSON.parse(text) as DistRelease[]
+  await fs.mkdir(path.dirname(cachePath), { recursive: true })
+  await fs.writeFile(cachePath, text, 'utf8')
+  distIndexMemo = { fetchedAt: now, releases }
+  return releases
+}
+
+/**
+ * Resolve a non-exact version spec against the nodejs.org index.
+ * Handles:
+ *   "latest"       — newest release.
+ *   "lts" / "lts/*" — newest LTS release.
+ *   "lts/iron"     — newest release tagged with that LTS codename.
+ *   "20" / "20.10" — newest release in that major / major.minor line.
+ *   "node" (asdf alias for latest) — newest release.
+ * Returns null for ranges (">=18", "^18", etc.) — those require a semver
+ * library and are deferred.
+ */
+async function resolveAlias(raw: string): Promise<string | null> {
+  const lower = raw.trim().toLowerCase().replace(/^v/, '')
+  if (!lower) return null
+
+  // Ranges are out of scope for P2 — needs a semver library.
+  if (/[<>=^~]|\s|\*/.test(lower)) {
+    console.log(`${LOG} alias "${raw}" is a range, not supported`)
+    return null
+  }
+
+  const releases = await loadDistIndex().catch((e) => {
+    console.warn(`${LOG} failed to load dist index: ${e instanceof Error ? e.message : e}`)
+    return null
+  })
+  if (!releases || releases.length === 0) return null
+
+  // index.json is newest-first. We just take the first match.
+  const pick = (predicate: (r: DistRelease) => boolean): string | null => {
+    const hit = releases.find(predicate)
+    return hit ? hit.version.replace(/^v/, '') : null
+  }
+
+  if (lower === 'latest' || lower === 'node' || lower === 'stable') {
+    return pick(() => true)
+  }
+  if (lower === 'lts' || lower === 'lts/*') {
+    return pick((r) => r.lts !== false)
+  }
+  if (lower.startsWith('lts/')) {
+    const codename = lower.slice(4)
+    return pick((r) => typeof r.lts === 'string' && r.lts.toLowerCase() === codename)
+  }
+  if (/^\d+$/.test(lower)) {
+    // Major only — newest release in this major.
+    return pick((r) => r.version.startsWith(`v${lower}.`))
+  }
+  if (/^\d+\.\d+$/.test(lower)) {
+    return pick((r) => r.version.startsWith(`v${lower}.`))
+  }
+  return null
+}
+
+/**
+ * Resolve a raw version string from .nvmrc / engines.node / .tool-versions
+ * into a clean semver. Tries exact match first, then alias resolution
+ * against nodejs.org/dist/index.json. Returns null if neither path applies
+ * (e.g. ranges like ">=18").
+ */
+async function resolveVersionSpec(raw: string): Promise<string | null> {
+  const exact = exactSemver(raw)
+  if (exact) return exact
+  const aliased = await resolveAlias(raw)
+  if (aliased) {
+    console.log(`${LOG} alias "${raw.trim()}" resolved to ${aliased}`)
+    return aliased
+  }
   return null
 }
 
@@ -123,22 +224,22 @@ export async function resolveNodeVersion(workDir: string): Promise<string | null
   // 1. .nvmrc — most common.
   const nvmrc = await readIfExists(path.join(workDir, '.nvmrc'))
   if (nvmrc) {
-    const v = normalizeVersion(nvmrc)
+    const v = await resolveVersionSpec(nvmrc)
     if (v) {
       console.log(`${LOG} resolved version from .nvmrc: ${v}`)
       return v
     }
-    console.log(`${LOG} .nvmrc value "${nvmrc.trim()}" not usable (alias/range)`)
+    console.log(`${LOG} .nvmrc value "${nvmrc.trim()}" not usable (range/unrecognized)`)
   }
 
-  // 2. package.json#engines.node — only honored if it's a single semver.
+  // 2. package.json#engines.node — only honored if it's a single semver or alias.
   const pkgRaw = await readIfExists(path.join(workDir, 'package.json'))
   if (pkgRaw) {
     try {
       const pkg = JSON.parse(pkgRaw)
       const engineNode = pkg?.engines?.node
       if (typeof engineNode === 'string') {
-        const v = normalizeVersion(engineNode)
+        const v = await resolveVersionSpec(engineNode)
         if (v) {
           console.log(`${LOG} resolved version from package.json engines.node: ${v}`)
           return v
@@ -156,7 +257,7 @@ export async function resolveNodeVersion(workDir: string): Promise<string | null
     for (const line of toolVersions.split('\n')) {
       const match = line.match(/^\s*(nodejs|node)\s+(\S+)/)
       if (match) {
-        const v = normalizeVersion(match[2])
+        const v = await resolveVersionSpec(match[2])
         if (v) {
           console.log(`${LOG} resolved version from .tool-versions: ${v}`)
           return v
@@ -238,6 +339,15 @@ export async function ensureNodeBin(version: string): Promise<string> {
 
   const existing = inflight.get(version)
   if (existing) return existing
+
+  // Before downloading anything, get the user's blessing. Cached decisions
+  // are honored silently inside requestConsent.
+  const granted = await requestConsent({ kind: 'node', version, approxSizeMB: 30 })
+  if (!granted) {
+    throw new Error(
+      `User declined to download managed Node v${version}. Falling back to system Node.`
+    )
+  }
 
   const job = (async () => {
     if (info.archiveExt !== 'tar.gz') {

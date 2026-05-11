@@ -81,6 +81,51 @@ const BACKEND_SIGNATURES: BackendSignature[] = [
 // without a language file at root. Used as a secondary signal.
 const SIBLING_BACKEND_DIRS = ['backend', 'server', 'api', 'services']
 
+// Frontend env-var prefixes that get exposed to the browser at build/run time
+// across the major frameworks we support.
+const FRONTEND_ENV_PREFIXES = ['NEXT_PUBLIC_', 'VITE_', 'REACT_APP_', 'VUE_APP_', 'PUBLIC_']
+
+// Within those, names matching any of these substrings are likely to point at
+// a backend. We deliberately exclude auth-provider keys (Clerk, Auth0,
+// Firebase, Stripe, etc) since those aren't what a user fixing a 404 needs.
+const BACKEND_ENV_NAME_HINTS = ['API', 'BACKEND', 'SERVER', 'HOST', 'BASE_URL', 'ENDPOINT', 'GRAPHQL']
+const BACKEND_ENV_NAME_EXCLUDES = [
+  'CLERK',
+  'AUTH0',
+  'SUPABASE',
+  'FIREBASE',
+  'STRIPE',
+  'SENTRY',
+  'POSTHOG',
+  'ANALYTICS',
+  'GA_',
+  'GTAG',
+  'AMPLITUDE',
+  'MIXPANEL',
+  'DATADOG'
+]
+
+// Files in the frontend dir we'll grep for env-var references. Kept small to
+// avoid making detect slow.
+const FRONTEND_ENV_FILE_HINTS = [
+  '.env',
+  '.env.example',
+  '.env.local',
+  '.env.development',
+  '.env.development.local',
+  'src/lib/api.ts',
+  'src/lib/api.js',
+  'src/lib/client.ts',
+  'src/api/client.ts',
+  'src/config.ts',
+  'src/utils/api.ts',
+  'next.config.js',
+  'next.config.ts',
+  'next.config.mjs',
+  'vite.config.ts',
+  'vite.config.js'
+]
+
 interface DetectFromPackageJsonResult {
   type: ProjectType
   devCommand: string | null
@@ -172,6 +217,49 @@ async function loadTreeIndex(git: SimpleGit, commitHash: string): Promise<TreeIn
     )
   }
   return { files, dirs }
+}
+
+function looksLikeBackendEnvName(name: string): boolean {
+  const upper = name.toUpperCase()
+  if (!FRONTEND_ENV_PREFIXES.some((p) => upper.startsWith(p))) return false
+  if (BACKEND_ENV_NAME_EXCLUDES.some((bad) => upper.includes(bad))) return false
+  return BACKEND_ENV_NAME_HINTS.some((good) => upper.includes(good))
+}
+
+/**
+ * Scan a handful of files inside the frontend dir for references to env vars
+ * that likely point at a backend URL. Returns a sorted, de-duplicated list.
+ * Best-effort — missing files are silently skipped.
+ */
+async function findBackendEnvHints(
+  git: SimpleGit,
+  commitHash: string,
+  tree: TreeIndex,
+  frontendWorkingDir: string
+): Promise<string[]> {
+  const hits = new Set<string>()
+  // Pattern: capture an identifier starting with one of our prefixes.
+  // Examples we want to match:
+  //   process.env.NEXT_PUBLIC_API_URL
+  //   import.meta.env.VITE_API_URL
+  //   NEXT_PUBLIC_API_URL=http://...   (in .env files)
+  const re = /\b(NEXT_PUBLIC_|VITE_|REACT_APP_|VUE_APP_|PUBLIC_)[A-Z0-9_]+/g
+
+  const filesToRead = FRONTEND_ENV_FILE_HINTS.map((rel) =>
+    frontendWorkingDir ? `${frontendWorkingDir}/${rel}` : rel
+  ).filter((p) => tree.files.has(p))
+
+  // Cap the number of files we read to keep detect fast.
+  const MAX_FILES = 8
+  for (const path of filesToRead.slice(0, MAX_FILES)) {
+    const content = await tryReadAtCommit(git, commitHash, path)
+    if (!content) continue
+    for (const match of content.matchAll(re)) {
+      const name = match[0]
+      if (looksLikeBackendEnvName(name)) hits.add(name)
+    }
+  }
+  return [...hits].sort()
 }
 
 function detectCompanionBackend(
@@ -310,7 +398,8 @@ export async function detectProjectType(
       hasEnvTemplate: false,
       requiredEnvVars: [],
       workingDir: '',
-      companionBackend: null
+      companionBackend: null,
+      backendEnvHints: []
     }
   }
 
@@ -337,16 +426,28 @@ export async function detectProjectType(
     )
   }
 
+  // Only spend the time scanning frontend files for env hints if there's a
+  // backend to point them at. Otherwise the hint is meaningless.
+  const backendEnvHints = companionBackend
+    ? await findBackendEnvHints(git, commitHash, tree, found.workingDir)
+    : []
+  if (backendEnvHints.length > 0) {
+    console.log(
+      `${LOG} backend env hints commit=${shortHash}: [${backendEnvHints.join(', ')}]`
+    )
+  }
+
   const result: ProjectConfig = {
     ...found.classification,
     hasEnvTemplate,
     requiredEnvVars,
     workingDir: found.workingDir,
-    companionBackend
+    companionBackend,
+    backendEnvHints
   }
 
   console.log(
-    `${LOG} result commit=${shortHash} type=${result.type} workingDir="${result.workingDir}" devCommand=${result.devCommand} envTemplate=${hasEnvTemplate} companion=${companionBackend?.kind ?? 'none'}`
+    `${LOG} result commit=${shortHash} type=${result.type} workingDir="${result.workingDir}" devCommand=${result.devCommand} envTemplate=${hasEnvTemplate} companion=${companionBackend?.kind ?? 'none'} envHints=${backendEnvHints.length}`
   )
   return result
 }

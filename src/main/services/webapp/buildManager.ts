@@ -3,6 +3,7 @@ import { EventEmitter } from 'events'
 import type { WebAppSession, ProjectConfig } from '@shared/types'
 import { randomUUID } from 'crypto'
 import { findFreePort } from './portAllocator'
+import { prepareNodeRuntime, pathWithNodeBin } from './nodeRuntime'
 import path from 'path'
 import fs from 'fs/promises'
 import { tmpdir } from 'os'
@@ -102,25 +103,55 @@ async function startBuildProcess(
     // 1. Companion backend warning (emitted before install so users see it early).
     if (config.companionBackend) {
       const cb = config.companionBackend
+      const lines: string[] = [
+        `This repo contains a ${cb.kind} backend alongside the frontend (signals: ${cb.signals.join(', ')}).`,
+        `Vibelens only runs the frontend dev server — it does not start ${cb.kind} services because that would require installing a ${cb.kind} toolchain and the repo's dependencies on your machine, which vibelens cannot do safely without your consent (tracking issue: docs/ISOLATED_BUILD_STRATEGY.md).`,
+        `Expect frontend API calls (e.g. /api/*) to return 404 until you start the backend yourself.`,
+        `To run the backend:  ${cb.setupHint}`
+      ]
+      if (config.backendEnvHints.length > 0) {
+        lines.push(
+          `Once the backend is up, point the frontend at it by setting: ${config.backendEnvHints.join(', ')}  (e.g. NEXT_PUBLIC_API_URL=http://127.0.0.1:8000/api/v1). Set the var in the environment that launches vibelens — the spawned dev server inherits it.`
+        )
+      }
       emitter.emit('warning', {
         type: 'companion-backend',
-        message:
-          `This repo also contains a ${cb.kind} backend (signals: ${cb.signals.join(', ')}). ` +
-          `Vibelens runs only the frontend, so API calls may 404 until you start the backend separately. ` +
-          `Hint: ${cb.setupHint}`,
+        message: lines.join('\n'),
         severity: 'warning'
       })
     }
 
-    // 2. npm install
+    // 2. Resolve a pinned Node version (if the repo specifies one) and ensure
+    //    it's downloaded to the managed cache. Falls through to system Node
+    //    on any failure.
+    const node = await prepareNodeRuntime(workDir)
+    if (node.version && node.binDir) {
+      emitter.emit('log', {
+        level: 'info',
+        message: `Using managed Node v${node.version} (${node.binDir})`,
+        source: 'build'
+      })
+    } else if (node.version && node.error) {
+      emitter.emit('warning', {
+        type: 'missing-dependency',
+        message: `Could not prepare managed Node v${node.version}: ${node.error}. Falling back to system Node — if you see version-related errors, install Node v${node.version} manually.`,
+        severity: 'warning'
+      })
+    }
+    const managedEnv: NodeJS.ProcessEnv = {
+      ...process.env,
+      PATH: pathWithNodeBin(node.binDir)
+    }
+
+    // 3. npm install
     emitter.emit('log', {
       level: 'info',
       message: `Installing dependencies in ${workDir}...`,
       source: 'build'
     })
-    await runCommand('npm', ['install'], workDir, emitter)
+    await runCommand('npm', ['install'], workDir, emitter, managedEnv)
 
-    // 3. Check environment variables
+    // 4. Check environment variables
     if (config.hasEnvTemplate && config.requiredEnvVars.length > 0) {
       emitter.emit('warning', {
         type: 'missing-env',
@@ -129,7 +160,7 @@ async function startBuildProcess(
       })
     }
 
-    // 4. Start dev server
+    // 5. Start dev server
     emitter.emit('log', {
       level: 'info',
       message: `Starting dev server on port ${port}...`,
@@ -152,7 +183,7 @@ async function startBuildProcess(
     const proc = spawn(cmd, args, {
       cwd: workDir,
       env: {
-        ...process.env,
+        ...managedEnv,
         NODE_ENV: 'development',
         PORT: String(port),
         VITE_PORT: String(port),
@@ -259,10 +290,11 @@ function runCommand(
   cmd: string,
   args: string[],
   cwd: string,
-  emitter: EventEmitter
+  emitter: EventEmitter,
+  env?: NodeJS.ProcessEnv
 ): Promise<void> {
   return new Promise((resolve, reject) => {
-    const proc = spawn(cmd, args, { cwd, shell: true })
+    const proc = spawn(cmd, args, { cwd, shell: true, env: env ?? process.env })
 
     proc.stdout?.on('data', (data) => {
       emitter.emit('log', {

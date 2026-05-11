@@ -140,12 +140,14 @@ managed cache). Don't auto-install on first run.
 
 Implement in this order:
 
-1. **Phase 1 — Node-only managed runtime** (extend B for Node).
-   We already shell out `npm install` and `node`. Pin a Node version per
-   repo by reading `.nvmrc` / `engines.node` / `volta` field; download to
-   `~/.vibelens/tools/node/<version>/` if missing; prepend to spawned
-   PATH. Zero new ecosystems, immediate value (a Mac without Node still
-   works).
+1. **Phase 1 — Node-only managed runtime** (extend B for Node). **Shipped**
+   (see `src/main/services/webapp/nodeRuntime.ts`). Reads `.nvmrc`,
+   `package.json#engines.node`, and `.tool-versions` for an exact semver;
+   downloads to `userData/tools/node/<version>/` with SHASUMS256 verification;
+   prepends to spawned PATH for `npm install` + dev server. Falls through to
+   system Node when the repo doesn't pin a usable version or when download
+   fails (with a warning). Aliases (`lts/iron`) and ranges (`>=18`) are
+   intentionally deferred to a later phase.
 2. **Phase 2 — Container mode, opt-in.** When the repo has a `Dockerfile`
    or `devcontainer.json` *and* the user has a container runtime, offer
    "Run in container" as a session toggle. No auto-install of Docker.

@@ -216,6 +216,10 @@ export interface ProjectConfig {
   /** If set, the repo also contains a non-Node backend that vibelens does NOT auto-run.
    *  The frontend may make API calls (e.g. /api/*) that 404 until the user starts it manually. */
   companionBackend: CompanionBackend | null
+  /** Frontend env vars that likely need to point at a backend URL (NEXT_PUBLIC_*_URL,
+   *  VITE_*_URL, REACT_APP_*_URL, etc). Used to surface "set this env var" hints in the
+   *  companion-backend warning. Empty when we don't find any candidates. */
+  backendEnvHints: string[]
 }
 
 export interface WebAppSession {

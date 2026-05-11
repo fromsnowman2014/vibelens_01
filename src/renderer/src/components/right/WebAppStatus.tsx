@@ -143,7 +143,7 @@ export function WebAppStatus() {
                   <AlertTriangle size={14} className="flex-shrink-0 mt-0.5" />
                   <div>
                     <div className="font-medium capitalize">{warning.type.replace(/-/g, ' ')}</div>
-                    <div className="mt-1 text-fg-muted">{warning.message}</div>
+                    <div className="mt-1 text-fg-muted whitespace-pre-line">{warning.message}</div>
                   </div>
                 </div>
               </div>

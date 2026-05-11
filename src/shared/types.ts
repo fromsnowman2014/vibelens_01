@@ -195,6 +195,16 @@ export type ProjectType =
   | 'static-html'
   | 'unknown'
 
+export type CompanionBackendKind = 'python' | 'rust' | 'go' | 'ruby' | 'jvm' | 'dotnet' | 'php' | 'node'
+
+export interface CompanionBackend {
+  kind: CompanionBackendKind
+  /** Files/dirs in the repo that triggered the detection (e.g. ["requirements.txt", "server.py"]). */
+  signals: string[]
+  /** A short, copy-pasteable hint for getting the backend running. */
+  setupHint: string
+}
+
 export interface ProjectConfig {
   type: ProjectType
   devCommand: string | null // "npm run dev", "npm start" 등
@@ -203,6 +213,9 @@ export interface ProjectConfig {
   hasEnvTemplate: boolean // .env.example 존재 여부
   requiredEnvVars: string[] // API_KEY 등
   workingDir: string // package.json/index.html이 위치한 상대 경로 ('' = repo root, 'frontend' 등)
+  /** If set, the repo also contains a non-Node backend that vibelens does NOT auto-run.
+   *  The frontend may make API calls (e.g. /api/*) that 404 until the user starts it manually. */
+  companionBackend: CompanionBackend | null
 }
 
 export interface WebAppSession {
@@ -232,7 +245,7 @@ export interface ConsoleLog {
 }
 
 export interface WebAppWarning {
-  type: 'missing-env' | 'port-conflict' | 'missing-dependency' | 'api-error'
+  type: 'missing-env' | 'port-conflict' | 'missing-dependency' | 'api-error' | 'companion-backend'
   message: string
   severity: 'warning' | 'error'
 }

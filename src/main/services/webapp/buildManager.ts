@@ -99,7 +99,20 @@ async function startBuildProcess(
   if (!sessionData) return
 
   try {
-    // 1. npm install
+    // 1. Companion backend warning (emitted before install so users see it early).
+    if (config.companionBackend) {
+      const cb = config.companionBackend
+      emitter.emit('warning', {
+        type: 'companion-backend',
+        message:
+          `This repo also contains a ${cb.kind} backend (signals: ${cb.signals.join(', ')}). ` +
+          `Vibelens runs only the frontend, so API calls may 404 until you start the backend separately. ` +
+          `Hint: ${cb.setupHint}`,
+        severity: 'warning'
+      })
+    }
+
+    // 2. npm install
     emitter.emit('log', {
       level: 'info',
       message: `Installing dependencies in ${workDir}...`,
@@ -107,7 +120,7 @@ async function startBuildProcess(
     })
     await runCommand('npm', ['install'], workDir, emitter)
 
-    // 2. Check environment variables
+    // 3. Check environment variables
     if (config.hasEnvTemplate && config.requiredEnvVars.length > 0) {
       emitter.emit('warning', {
         type: 'missing-env',
@@ -116,7 +129,7 @@ async function startBuildProcess(
       })
     }
 
-    // 3. Start dev server
+    // 4. Start dev server
     emitter.emit('log', {
       level: 'info',
       message: `Starting dev server on port ${port}...`,

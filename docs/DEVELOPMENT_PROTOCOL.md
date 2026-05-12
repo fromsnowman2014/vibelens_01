@@ -19,6 +19,9 @@
 - **`docs/SOURCE_FUNCTION_MAP.md`** - 전체 소스 구조 및 함수 맵 (이 문서를 항상 먼저 참조)
 - **`README.md`** - 프로젝트 개요 및 설치 가이드
 - **`README_KR.md`** - 한국어 프로젝트 문서
+- **`docs/LIVE_PREVIEW_COMPATIBILITY.md`** - Live Preview webview 호환성 / 리팩터 가이드 (WebApp 관련 작업 전 필독)
+- **`docs/ISOLATED_BUILD_STRATEGY.md`** - 시스템에 의존하지 않는 build/test 전략
+- **`docs/MULTI_SERVICE_RUNNER.md`** - 백엔드 동시 실행 plan
 
 ### 주요 디렉토리
 ```
@@ -54,6 +57,19 @@ src/
 → 에러 핸들링 로직 수정
 ```
 
+#### Live Preview / WebApp 문제 트러블슈팅
+
+WebApp Live Preview에서 "Chrome에선 되는데 vibelens에선 안 되는" 케이스는 거의 항상 다음 4가지 중 하나:
+
+1. **Chrome에서 같은 URL을 직접 열어보고 차이가 있는지 먼저 확인**. 차이가 없다면 vibelens 외부 문제(repo / dev server / backend 부재). 차이가 있다면 webview 호환성 문제로 좁혀짐.
+2. **`src/main/index.ts` createWindow의 `webPreferences`에 `webSecurity: false`가 있는지 확인** — 절대 금지. webview는 webview 자체의 보안 컨텍스트로 동작해야 하며, 부모의 보안 플래그로부터 호환성을 얻으면 안 됨.
+3. **`src/main/services/webapp/previewSession.ts`의 `PREVIEW_PARTITION`이 `persist:` prefix를 가지지 않는지 확인** — 영구 partition은 이전 repo의 service worker / cache가 다음 repo의 chunk 요청을 가로채는 root cause가 됨. 비영구 partition(`webapp`) 유지.
+4. **세션 시작 직전 `clearWebappSession()`이 호출되는지 확인** — sticky 상태가 의심되면 storage wipe로 가설 즉시 검증 가능.
+
+webview의 내부 contents를 디버깅하려면 toolbar의 **DevTools** 버튼을 사용 (`webview.openDevTools()` 호출). 부모 renderer의 DevTools가 아님.
+
+자세한 분석과 결정 트리는 `docs/LIVE_PREVIEW_COMPATIBILITY.md` 참고.
+
 ---
 
 ### 2. 기능 추가 (Feature Development)
@@ -78,6 +94,21 @@ src/
 → src/renderer/src/stores/repoStore.ts 에 compareBranches 액션 추가
 → SOURCE_FUNCTION_MAP.md 업데이트
 ```
+
+#### Live Preview webview에 정책/이벤트를 추가할 때
+
+webview의 partition / header 정책 / storage 관리는 **`src/main/services/webapp/previewSession.ts`** 하나가 owner. webview UI는 **`src/renderer/src/components/center/preview/PreviewFrame.tsx`** 하나가 owner (이 파일이 `<webview>` 태그를 import하는 유일한 파일).
+
+새로운 webview 동작을 추가할 때:
+- **요청/응답 헤더, partition, storage** → `previewSession.ts`에 함수 추가, `main/index.ts`나 다른 파일에 인라인 로직 두지 말 것.
+- **새 webview 이벤트 listening** → `preview/useWebviewEvents.ts`에 핸들러 추가, LivePreview에서 콜백으로 받음.
+- **toolbar 버튼 추가** → `preview/PreviewToolbar.tsx`만 수정.
+- **`<webview>` 속성 변경** (보안 / partition / preferences) → `PreviewFrame.tsx`만 수정. 다른 곳에서 webview 태그를 만들지 말 것.
+
+**금지사항**:
+- `main/index.ts`의 `createWindow.webPreferences`에 `webSecurity: false` 추가 금지. webview 호환성은 부모 윈도우의 보안 플래그로 얻는 것이 아님.
+- `session.fromPartition('webapp')`을 `previewSession.ts` 외부에서 직접 호출 금지.
+- partition 이름에 `persist:` 붙이지 말 것. 매 commit이 fresh tab 의미가 깨짐.
 
 ---
 

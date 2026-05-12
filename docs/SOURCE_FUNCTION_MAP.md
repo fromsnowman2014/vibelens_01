@@ -2,7 +2,7 @@
 
 > **목적**: 문제 분석, 개선, 기능 추가 시 전체 소스 구조를 매번 검색하지 않고, 이 맵 파일을 통해 해당 파일 및 함수에 직접 접근하여 토큰을 효율적으로 사용하고 vibe coding을 가능하게 합니다.
 
-**Last Updated**: 2026-04-23 (Phase 5 - WebApp Emulator)
+**Last Updated**: 2026-05-11 (WebApp 호환성 리팩터 — previewSession, preview/ 분할, F1–F3 fixes)
 
 ---
 
@@ -317,8 +317,43 @@ vibelens_01/
 
 **핵심 함수**:
 - `findFreePort(preferredPort)` - 사용 가능한 포트 찾기
-  - preferredPort부터 순차적으로 탐색 (65535까지)
+  - preferredPort부터 순차적으로 탐색 (65535까지), `0.0.0.0`에서 bind 시도하여 dev 서버와 동일 조건 검증
 - `isPortFree(port)` - 포트 사용 가능 여부 확인
+
+###### Preview Session (`previewSession.ts`) **[2026-05 추가]**
+
+**역할**: Live Preview `<webview>`가 사용하는 Electron Session의 **유일한 소유자**. partition 이름, 헤더 정책, storage cleanup이 모두 이 파일에 있음. 다른 모듈은 `session.fromPartition('webapp')`을 직접 호출하지 말 것.
+
+**핵심 함수**:
+- `getWebappSession()` - webview의 Session 반환
+- `configureWebappSession()` - 앱 시작 시 1회 호출 (현재 no-op이지만 향후 preview-only 정책의 진입점)
+- `clearWebappSession()` - cookies / serviceworkers / cachestorage / localstorage / indexdb 전체 wipe. `webappService.startWebApp`이 새 세션 시작 직전 호출
+
+**상수**:
+- `PREVIEW_PARTITION = 'webapp'` (비영구 — 매 세션 fresh state)
+
+###### Node Runtime (`nodeRuntime.ts`) **[2026-05 추가]**
+
+**역할**: 시스템 Node에 의존하지 않고 repo가 pin한 Node 버전을 vibelens 캐시에 다운로드해서 spawn시 PATH에 끼워넣음.
+
+**핵심 함수**:
+- `resolveNodeVersion(workDir)` - `.nvmrc` / `package.json#engines.node` / `.tool-versions`에서 버전 추출
+- `resolveVersionSpec(raw)` - exact semver 먼저 시도, 아니면 alias resolver
+- `resolveAlias(raw)` - `nodejs.org/dist/index.json`로 `latest`/`lts`/`lts/iron`/`20`/`20.10` 해석
+- `ensureNodeBin(version)` - `userData/tools/node/<version>/`에 binary 보장 (download + SHASUMS256 검증 + 추출)
+- `prepareNodeRuntime(workDir)` - 위 둘을 wrap. 실패 시 system Node fallback
+- `pathWithNodeBin(binDir)` - PATH에 prepend
+
+###### Runtime Consent (`runtimeConsent.ts`, `consentService.ts`) **[2026-05 추가]**
+
+**역할**: 처음 Node binary를 다운로드하기 전 사용자 동의를 요청. 결정은 `electron-store('vibelens-runtime-consents')`에 persist.
+
+**핵심 함수** (`runtimeConsent.ts`):
+- `requestConsent({ kind, version, approxSizeMB })` - 캐시된 결정이 있으면 즉시 반환, 없으면 renderer로 prompt 전송 후 응답 대기
+- 동일 kind 중복 prompt 방지 (in-flight dedupe)
+
+**핵심 함수** (`consentService.ts`):
+- `getConsent(kind)` / `setConsent(kind, granted)` / `clearConsent(kind)`
 
 ---
 
@@ -557,6 +592,18 @@ vibelens_01/
 - 문법 하이라이팅 (prismjs)
 - Binary/TooLarge 파일 처리
 
+**LivePreview** (`components/center/LivePreview.tsx`) **[2026-05 split]**
+- session.status에 따라 sub-state를 분기하는 얇은 orchestrator (~50 lines)
+- `useWebviewZoom`, `useWebviewEvents` 훅으로 사이드이펙트 분리
+- 렌더링: `PreviewIdle / PreviewBuilding / PreviewError / PreviewWaiting` 또는 `<PreviewToolbar> + <PreviewFrame>`
+
+**`components/center/preview/`** **[2026-05 추가]**
+- **`PreviewFrame.tsx`** — Electron `<webview>` 태그를 import하는 **유일한 파일**. partition='webapp' (비영구), `webpreferences` 미지정 (Chromium 기본값). 다른 임베디드 surface로 교체할 일이 생기면 이 파일만 손대면 됨.
+- **`PreviewToolbar.tsx`** — URL 표시 + 확대/축소 + DevTools 버튼 + Open in Browser + Stop
+- **`PreviewStates.tsx`** — `PreviewIdle/Building/Error/Waiting` empty-state 컴포넌트
+- **`useWebviewEvents.ts`** — `dom-ready / did-fail-load / console-message` 이벤트를 React 콜백으로 wrap
+- **`useWebviewZoom.ts`** — zoom 상태 + `setZoomFactor` side-effect
+
 ---
 
 ##### Right Panel
@@ -704,6 +751,38 @@ vibelens_01/
   → [SettingsStore] hasClaudeKey=true
   → [SettingsModal] 테스트 버튼 활성화
 ```
+
+### 4. WebApp Live Preview 플로우 **[2026-05 추가]**
+
+```
+[CommitTimeline] Play 클릭
+  → [WebAppStore] startWebApp(commitHash)
+  → [API] webapp:start
+  → [Main] webappService.startWebApp()
+    → projectDetector.detectProjectType()  (root + frontend/web/app 하위 탐색,
+                                            companion backend / backendEnvHints 추출)
+    → previewSession.clearWebappSession()  (이전 세션 cookies/SW/cache wipe)
+    → buildManager.buildAndRun()
+      → git worktree add → port allocate (0.0.0.0 bind)
+      → nodeRuntime.prepareNodeRuntime() (.nvmrc / engines.node / .tool-versions
+                                          → ensureNodeBin → consent prompt)
+      → emit 'companion-backend' warning (있으면)
+      → npm install (managed Node PATH)
+      → spawn dev server
+      → stdout/stderr → emit 'log'
+      → ready pattern 감지 → status='running'
+
+[WebAppStore] session.status='running' & session.port=N
+  → [LivePreview] url = http://127.0.0.1:N
+    → <PreviewFrame partition='webapp'>  (비영구 partition, webSecurity 기본값)
+    → useWebviewEvents → console-message / did-fail-load → appendBuildLog(source='preview')
+```
+
+**관련 문서**:
+- `docs/WEBAPP_EMULATOR_STRATEGY.md` - Phase 5 전체 전략
+- `docs/ISOLATED_BUILD_STRATEGY.md` - Node managed runtime + 향후 Python/container
+- `docs/MULTI_SERVICE_RUNNER.md` - 백엔드 동시 실행 plan
+- `docs/LIVE_PREVIEW_COMPATIBILITY.md` - webview 호환성 root cause / 리팩터 가이드
 
 ---
 

@@ -1,6 +1,7 @@
 import type { ProjectConfig, WebAppSession } from '@shared/types'
 import { detectProjectType } from './projectDetector'
 import { buildAndRun, stopSession, getSession } from './buildManager'
+import { clearWebappSession } from './previewSession'
 
 /**
  * Detect project type from repository
@@ -26,7 +27,14 @@ export async function startWebApp(
     throw new Error('This repository does not appear to be a web application')
   }
 
-  // 2. Build and run
+  // 2. Clear the preview webview's storage so a previous repo's service
+  //    workers / caches / cookies cannot intercept this session. Best-effort:
+  //    we don't want a clearStorageData hiccup to block the build.
+  await clearWebappSession().catch((e) => {
+    console.warn('[webappService] clearWebappSession failed (continuing):', e)
+  })
+
+  // 3. Build and run
   return await buildAndRun(repoPath, commitHash, config)
 }
 

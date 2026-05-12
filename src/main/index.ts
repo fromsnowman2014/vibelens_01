@@ -1,8 +1,9 @@
-import { app, BrowserWindow, Menu, shell, nativeTheme, ipcMain, session } from 'electron'
+import { app, BrowserWindow, Menu, shell, nativeTheme } from 'electron'
 import { join } from 'path'
 import { registerIpc } from './ipc/registerIpc'
 import { buildAppMenu } from './menu'
 import { clearRecentRepos, getSettings } from './services/settingsService'
+import { configureWebappSession } from './services/webapp/previewSession'
 import { logger } from './utils/logger'
 
 let mainWindow: BrowserWindow | null = null
@@ -79,25 +80,9 @@ export function rebuildMenu(): void {
 app.whenReady().then(async () => {
   nativeTheme.themeSource = 'dark'
 
-  // Configure webview session to allow localhost connections
-  const webappSession = session.fromPartition('persist:webapp')
-
-  // Disable CORS for localhost to allow webview to load dev servers
-  webappSession.webRequest.onBeforeSendHeaders((details, callback) => {
-    callback({ requestHeaders: { ...details.requestHeaders } })
-  })
-
-  webappSession.webRequest.onHeadersReceived((details, callback) => {
-    const headers = details.responseHeaders || {}
-    callback({
-      responseHeaders: {
-        ...headers,
-        'Access-Control-Allow-Origin': ['*'],
-        'Access-Control-Allow-Methods': ['*'],
-        'Access-Control-Allow-Headers': ['*']
-      }
-    })
-  })
+  // Webview session policy (partition, headers, future cleanup) is owned by
+  // previewSession.ts — see docs/LIVE_PREVIEW_COMPATIBILITY.md.
+  configureWebappSession()
 
   registerIpc()
 

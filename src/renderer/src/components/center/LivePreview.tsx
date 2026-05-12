@@ -14,8 +14,14 @@ import { useWebviewZoom } from './preview/useWebviewZoom'
 export function LivePreview() {
   const session = useWebAppStore((s) => s.session)
   const stopWebApp = useWebAppStore((s) => s.stopWebApp)
+  const appendBuildLog = useWebAppStore((s) => s.appendBuildLog)
   const webviewRef = useRef<HTMLElement | null>(null)
   const zoom = useWebviewZoom(webviewRef)
+
+  const openWebviewDevTools = () => {
+    const el = webviewRef.current as unknown as { openDevTools?: () => void } | null
+    el?.openDevTools?.()
+  }
 
   // Use 127.0.0.1 instead of localhost to avoid Electron webview network isolation issues.
   const url =
@@ -28,11 +34,23 @@ export function LivePreview() {
       el?.setZoomFactor?.(zoom.zoom)
     },
     onFailLoad: (e) => {
-      console.error('[LivePreview] Failed to load:', e.errorDescription)
+      // Surface the failure in the log panel where the user is already
+      // looking. -3 is ERR_ABORTED (e.g. navigation cancelled); skip noise.
+      if (e.errorCode === -3) return
+      appendBuildLog({
+        level: 'error',
+        message: `Failed to load ${e.validatedURL}: ${e.errorDescription} (code ${e.errorCode})`,
+        source: 'preview'
+      })
     },
     onConsoleMessage: (e) => {
-      // Forward webview console messages to main console for debugging.
-      console.log('[WebView]', e.message)
+      // Electron webview level: 0=verbose, 1=info, 2=warning, 3=error.
+      const level: 'info' | 'warn' | 'error' = e.level >= 3 ? 'error' : e.level === 2 ? 'warn' : 'info'
+      appendBuildLog({
+        level,
+        message: `[${e.sourceId}:${e.line}] ${e.message}`,
+        source: 'preview'
+      })
     }
   })
 
@@ -42,7 +60,12 @@ export function LivePreview() {
   if (session.status === 'running' && url) {
     return (
       <div className="flex flex-col h-full w-full bg-bg-panel">
-        <PreviewToolbar url={url} zoom={zoom} onStop={() => stopWebApp()} />
+        <PreviewToolbar
+          url={url}
+          zoom={zoom}
+          onStop={() => stopWebApp()}
+          onOpenDevTools={openWebviewDevTools}
+        />
         <PreviewFrame ref={webviewRef} url={url} />
       </div>
     )

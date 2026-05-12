@@ -1,4 +1,4 @@
-import { Monitor, ExternalLink, ZoomIn, ZoomOut, Maximize2 } from 'lucide-react'
+import { Monitor, ExternalLink, ZoomIn, ZoomOut, Maximize2, Bug } from 'lucide-react'
 import { Button } from '@renderer/components/primitives/Button'
 import type { WebviewZoom } from './useWebviewZoom'
 
@@ -6,9 +6,10 @@ interface Props {
   url: string
   zoom: WebviewZoom
   onStop: () => void
+  onOpenDevTools: () => void
 }
 
-export function PreviewToolbar({ url, zoom, onStop }: Props) {
+export function PreviewToolbar({ url, zoom, onStop, onOpenDevTools }: Props) {
   return (
     <div className="flex items-center gap-2 px-3 py-2 border-b border-border bg-bg-secondary/60 text-xs">
       <Monitor size={12} className="text-accent" />
@@ -29,6 +30,16 @@ export function PreviewToolbar({ url, zoom, onStop }: Props) {
         </Button>
       </div>
 
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={onOpenDevTools}
+        className="flex items-center gap-1 border-l border-border pl-2"
+        title="Open DevTools for the preview"
+      >
+        <Bug size={12} />
+        <span>DevTools</span>
+      </Button>
       <Button
         variant="ghost"
         size="sm"

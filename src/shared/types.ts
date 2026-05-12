@@ -237,7 +237,7 @@ export interface BuildLog {
   timestamp: number
   level: 'info' | 'warn' | 'error'
   message: string
-  source: 'build' | 'runtime'
+  source: 'build' | 'runtime' | 'preview'
 }
 
 export interface ConsoleLog {

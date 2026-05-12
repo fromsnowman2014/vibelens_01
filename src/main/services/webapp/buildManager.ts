@@ -167,16 +167,20 @@ async function startBuildProcess(
       source: 'build'
     })
 
-    // Modify dev command to bind to all interfaces (0.0.0.0)
-    // This allows Electron webview to connect to the dev server
+    // Bind the dev server to 127.0.0.1 (loopback only) and have the webview
+    // connect to the same address. Earlier versions bound to 0.0.0.0 because
+    // the legacy webSecurity:false webview could not otherwise reach the
+    // server; that's no longer required, and 0.0.0.0 actively causes problems
+    // with Next.js dev: when the server thinks it's on 0.0.0.0 it classifies
+    // 127.0.0.1 requests as cross-origin, blocks dynamic chunk loads, and the
+    // page hangs on a ChunkLoadError after a 60–120s webpack timeout.
+    // See docs/LIVE_PREVIEW_COMPATIBILITY.md.
     let devCommand = config.devCommand || 'npm run dev'
 
     if (config.type === 'nextjs') {
-      // Next.js: Use -H 0.0.0.0 flag to bind to all interfaces
-      devCommand = `npx next dev -p ${port} -H 0.0.0.0`
+      devCommand = `npx next dev -p ${port} -H 127.0.0.1`
     } else if (config.type === 'react-vite') {
-      // Vite: Use --host 0.0.0.0 flag
-      devCommand = `npx vite --port ${port} --host 0.0.0.0`
+      devCommand = `npx vite --port ${port} --host 127.0.0.1`
     }
 
     const [cmd, ...args] = devCommand.split(' ')
@@ -187,8 +191,11 @@ async function startBuildProcess(
         NODE_ENV: 'development',
         PORT: String(port),
         VITE_PORT: String(port),
-        HOST: '0.0.0.0',
-        HOSTNAME: '0.0.0.0'
+        // Match the -H/--host flags above. Frameworks that read HOST/HOSTNAME
+        // (e.g. some Vue/Vite setups) need the same loopback origin so they
+        // don't classify webview requests as cross-origin.
+        HOST: '127.0.0.1',
+        HOSTNAME: '127.0.0.1'
       },
       shell: true
     })

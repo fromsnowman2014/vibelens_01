@@ -23,7 +23,9 @@ export function LivePreview() {
     el?.openDevTools?.()
   }
 
-  // Use 127.0.0.1 instead of localhost to avoid Electron webview network isolation issues.
+  // Match the dev server's bind host (buildManager spawns Next/Vite with -H 127.0.0.1).
+  // Using the same address on both sides keeps Next from classifying chunk fetches
+  // as cross-origin, which would silently block them.
   const url =
     session?.status === 'running' && session.port ? `http://127.0.0.1:${session.port}` : null
 

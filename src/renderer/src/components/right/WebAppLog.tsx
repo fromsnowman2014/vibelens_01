@@ -82,6 +82,7 @@ export function WebAppLog() {
               <div className="flex-1 min-w-0">
                 <div className="text-[9px] text-fg-muted">
                   {new Date(log.timestamp).toLocaleTimeString()} • {log.source}
+                  {log.count && log.count > 1 ? ` • ×${log.count}` : ''}
                 </div>
                 <div className="whitespace-pre-wrap break-words">{log.message}</div>
               </div>

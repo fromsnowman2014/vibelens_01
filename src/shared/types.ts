@@ -238,6 +238,9 @@ export interface BuildLog {
   level: 'info' | 'warn' | 'error'
   message: string
   source: 'build' | 'runtime' | 'preview'
+  /** When >1, this entry represents the most recent of N consecutive
+   *  identical logs collapsed via short-window dedup. */
+  count?: number
 }
 
 export interface ConsoleLog {

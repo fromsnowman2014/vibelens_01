@@ -10,6 +10,7 @@ import {
 } from './preview/PreviewStates'
 import { useWebviewEvents } from './preview/useWebviewEvents'
 import { useWebviewZoom } from './preview/useWebviewZoom'
+import { classifyPreviewConsoleMessage } from './preview/previewLogFilter'
 
 export function LivePreview() {
   const session = useWebAppStore((s) => s.session)
@@ -46,13 +47,9 @@ export function LivePreview() {
       })
     },
     onConsoleMessage: (e) => {
-      // Electron webview level: 0=verbose, 1=info, 2=warning, 3=error.
-      const level: 'info' | 'warn' | 'error' = e.level >= 3 ? 'error' : e.level === 2 ? 'warn' : 'info'
-      appendBuildLog({
-        level,
-        message: `[${e.sourceId}:${e.line}] ${e.message}`,
-        source: 'preview'
-      })
+      const classified = classifyPreviewConsoleMessage(e)
+      if (!classified) return // dropped (verbose / info noise)
+      appendBuildLog({ level: classified.level, message: classified.message, source: 'preview' })
     }
   })
 

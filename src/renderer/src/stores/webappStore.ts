@@ -9,7 +9,18 @@ interface BuildLog {
   level: 'info' | 'warn' | 'error'
   message: string
   source: 'build' | 'runtime' | 'preview'
+  /** Number of times the most recent identical log was repeated. >=1.
+   *  Displayed as "× N" when greater than 1. */
+  count?: number
 }
+
+/** Maximum build logs we retain in memory. Older entries are dropped from
+ *  the head. Keeps memory + render cost bounded for chatty apps. */
+const MAX_BUILD_LOGS = 500
+
+/** Window during which an identical log collapses into a counter on the
+ *  previous entry instead of pushing a new row. */
+const DEDUP_WINDOW_MS = 2000
 
 interface ConsoleLog {
   id: string
@@ -210,14 +221,39 @@ export const useWebAppStore = create<WebAppState>((set, get) => ({
   },
 
   appendBuildLog: (log) => {
-    const newLog: BuildLog = {
-      ...log,
-      id: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-      timestamp: Date.now()
-    }
-    set((s) => ({
-      buildLogs: [...s.buildLogs, newLog]
-    }))
+    set((s) => {
+      const now = Date.now()
+      const prev = s.buildLogs[s.buildLogs.length - 1]
+      // Collapse identical consecutive logs within DEDUP_WINDOW_MS into a
+      // single entry with an incrementing counter. Cheaper than re-rendering
+      // every time a Next dev passive-listener warning fires 6× in a row.
+      if (
+        prev &&
+        prev.level === log.level &&
+        prev.source === log.source &&
+        prev.message === log.message &&
+        now - prev.timestamp < DEDUP_WINDOW_MS
+      ) {
+        const updated = {
+          ...prev,
+          count: (prev.count ?? 1) + 1,
+          timestamp: now
+        }
+        return { buildLogs: [...s.buildLogs.slice(0, -1), updated] }
+      }
+      const newLog: BuildLog = {
+        ...log,
+        id: `${now}-${Math.random().toString(36).slice(2, 9)}`,
+        timestamp: now,
+        count: 1
+      }
+      // Cap at MAX_BUILD_LOGS; drop the oldest if we'd exceed.
+      const next = [...s.buildLogs, newLog]
+      if (next.length > MAX_BUILD_LOGS) {
+        next.splice(0, next.length - MAX_BUILD_LOGS)
+      }
+      return { buildLogs: next }
+    })
   },
 
   appendConsoleLog: (log) => {

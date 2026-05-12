@@ -27,11 +27,9 @@ export const PreviewFrame = forwardRef<HTMLElement, Props>(function PreviewFrame
         }}
         // @ts-ignore - electron webview attrs are stringly-typed
         allowpopups="true"
-        partition="persist:webapp"
+        partition="webapp"
         // @ts-ignore - electron webview attrs are stringly-typed
         nodeintegration="false"
-        // @ts-ignore - electron webview attrs are stringly-typed
-        webpreferences="allowRunningInsecureContent"
       />
     </div>
   )

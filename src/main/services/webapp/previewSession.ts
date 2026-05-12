@@ -16,10 +16,12 @@ const LOG = '[previewSession]'
 /**
  * Partition name used by the <webview> tag in the renderer.
  *
- * R1 keeps the existing persistent name to preserve behavior bit-for-bit
- * during the refactor. F1 will rename this to a non-persistent partition.
+ * Non-persistent on purpose (no "persist:" prefix): cookies, caches,
+ * service workers, localStorage, IndexedDB all die when the partition is
+ * unloaded. Each fresh commit starts with vanilla browser state, matching
+ * a freshly-opened Chrome tab. See docs/LIVE_PREVIEW_COMPATIBILITY.md §4.2.
  */
-export const PREVIEW_PARTITION = 'persist:webapp'
+export const PREVIEW_PARTITION = 'webapp'
 
 let configured = false
 

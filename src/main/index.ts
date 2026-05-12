@@ -25,7 +25,6 @@ function createWindow(): BrowserWindow {
       sandbox: false,
       contextIsolation: true,
       nodeIntegration: false,
-      webSecurity: false,  // Disable web security to allow localhost loading
       webviewTag: true  // Enable <webview> tag support
     }
   })

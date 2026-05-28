@@ -33,6 +33,7 @@ import {
   saveKey
 } from '../services/keychainService'
 import { claudeProvider } from '../services/llm/ClaudeProvider'
+import { geminiProvider } from '../services/llm/GeminiProvider'
 import type { LLMProvider } from '../services/llm/LLMProvider'
 import { logger } from '../utils/logger'
 import type { AnalysisResult, Language, ProviderId } from '@shared/types'
@@ -41,19 +42,13 @@ import * as buildManager from '../services/webapp/buildManager'
 
 const activeAnalyses = new Map<string, AbortController>()
 
-/**
- * Returns the active LLM provider based on user settings.
- * Falls back to claudeProvider if the selected provider is not yet implemented.
- */
 function getActiveProvider(): LLMProvider {
   const settings = getSettings()
   switch (settings.activeProvider) {
     case 'claude':
       return claudeProvider
     case 'gemini':
-      // TODO: Implement GeminiProvider
-      logger.warn('Gemini provider not yet implemented, falling back to Claude')
-      return claudeProvider
+      return geminiProvider
     case 'openai':
       // TODO: Implement OpenAIProvider
       logger.warn('OpenAI provider not yet implemented, falling back to Claude')
@@ -213,7 +208,8 @@ export function registerIpc(): void {
           testProvider = claudeProvider
           break
         case 'gemini':
-          throw new Error('Gemini provider not yet implemented')
+          testProvider = geminiProvider
+          break
         case 'openai':
           throw new Error('OpenAI provider not yet implemented')
         default:

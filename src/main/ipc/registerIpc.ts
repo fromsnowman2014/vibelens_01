@@ -303,6 +303,7 @@ export function registerIpc(): void {
             commit,
             diffText,
             language,
+            model: getSettings().activeModel,
             signal: ac.signal
           })
           await writeCache(p, result)
@@ -362,7 +363,7 @@ export function registerIpc(): void {
     ) =>
       wrap(async () => {
         const provider = getActiveProvider()
-        return provider.chatWithContext(messages, context)
+        return provider.chatWithContext(messages, context, getSettings().activeModel)
       })
   )
 

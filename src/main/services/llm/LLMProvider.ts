@@ -4,6 +4,7 @@ export interface AnalyzeCommitInput {
   commit: Commit
   diffText: string
   language: Language
+  model?: string
   signal?: AbortSignal
 }
 
@@ -19,7 +20,8 @@ export interface LLMProvider {
   ping(): Promise<{ ok: boolean; error?: string }>
   chatWithContext(
     messages: { role: 'user' | 'assistant'; content: string }[],
-    context?: string
+    context?: string,
+    model?: string
   ): Promise<ChatResult>
 }
 
